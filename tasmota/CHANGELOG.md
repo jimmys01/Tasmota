@@ -1,5 +1,11 @@
 ## Unreleased (development)
 
+## Released
+
+### 8.2.0 20200321
+
+- Release
+
 ### 8.1.0.10 20200227
 
 - Change default my_user_config.h driver and sensor support removing most sensors and adding most drivers
@@ -106,8 +112,6 @@
 - Add WifiPower to ``Status 5``
 - Add support for DS1624, DS1621 Temperature sensor by Leonid Myravjev
 - Add Zigbee attribute decoder for Xiaomi Aqara Cube
-
-## Released
 
 ### 8.1.0 20191225
 

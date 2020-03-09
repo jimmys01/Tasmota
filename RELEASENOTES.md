@@ -52,7 +52,7 @@ The following binary downloads have been compiled with ESP8266/Arduino library c
 
 ## Changelog
 
-### Version 8.1.0.10
+### Version 8.2.0 Elliot
 
 - Change default my_user_config.h driver and sensor support removing most sensors and adding most drivers
 - Change DHT driver (#7468, #7717)
