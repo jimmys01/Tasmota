@@ -6,6 +6,17 @@
 
 - Release
 
+### 8.1.0.11 20200313
+
+- Change Zigbee simplification of devices probing, saving Flash and memory
+- Add HAss Discovery support for Button and Switch triggers by Federico Leoni (#7901)
+- Add support for HDC1080 Temperature and Humidity sensor by Luis Teixeira (#7888)
+- Add commands ``SwitchMode 13`` PushOn and ``SwitchMode 14`` PushOnInverted (#7912)
+- Add command ``HumOffset -10.0 .. 10.0`` to set global humidity sensor offset (#7934)
+- Add Zigbee support for Hue emulation by Stefan Hadinger
+- Add Dew Point to Temperature and Humidity sensors
+- Add support for ElectriQ iQ-wifiMOODL RGBW light by Ian King (#7947)
+
 ### 8.1.0.10 20200227
 
 - Change default my_user_config.h driver and sensor support removing most sensors and adding most drivers
@@ -15,6 +26,7 @@
 - Add Zigbee features and improvements and remove support for Zigbee commands starting with ``Zigbee...``
 - Add support for MaxBotix HRXL-MaxSonar ultrasonic range finders by Jon Little (#7814)
 - Add support for Romanian language translations by Augustin Marti
+- Add support for La Crosse TX23 Anemometer by Norbert Richter (#3146, #7765)
 - Add command ``SetOption89 0/1`` for Zigbee distinct MQTT topics per device for SENSOR, allowing retained messages (#7835)
 - Change Hue emulation code optimization
 
@@ -75,7 +87,7 @@
 - Add Zigbee persistence and friendly names
 - Add most SetOptions as defines to my_user_config.h
 - Add SoftwareSerial to CSE7766 driver allowing different GPIOs (#7563)
-- Add optional parameter <startcolor> to command ``Scheme <scheme>, <startcolor>`` to control initial start color
+- Add optional parameter ``<startcolor>`` to command ``Scheme <scheme>, <startcolor>`` to control initial start color
 - Add rule trigger on one level deeper using syntax with two ``#`` like ``on zigbeereceived#vibration_sensor#aqaracubeside=0 do ...``
 
 ### 8.1.0.3 20200106

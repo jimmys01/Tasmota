@@ -179,7 +179,7 @@ const char HUE_ERROR_JSON[] PROGMEM =
 
 /********************************************************************************************/
 
-String GetHueDeviceId(uint8_t id)
+String GetHueDeviceId(uint16_t id)
 {
   String deviceid = WiFi.macAddress();
   deviceid += F(":00:11-");
@@ -322,7 +322,6 @@ void HueLightStatus1(uint8_t device, String *response)
   const size_t buf_size = 256;
   char * buf = (char*) malloc(buf_size);     // temp buffer for strings, avoid stack
 
-  //String resp;
   snprintf_P(buf, buf_size, PSTR("{\"on\":%s,"), (power & (1 << (device-1))) ? "true" : "false");
   // Brightness for all devices with PWM
   if ((1 == echo_gen) || (LST_SINGLE <= local_light_subtype)) { // force dimmer for 1st gen Echo
@@ -386,11 +385,11 @@ void HueLightStatus2(uint8_t device, String *response)
 // it is limited to 32 devices.
 // last 24 bits of Mac address + 4 bits of local light + high bit for relays 16-31, relay 32 is mapped to 0
 // Zigbee extension: bit 29 = 1, and last 16 bits = short address of Zigbee device
-// #ifndef USE_ZIGBEE
+#ifndef USE_ZIGBEE
 uint32_t EncodeLightId(uint8_t relay_id)
-// #else
-// uint32_t EncodeLightId(uint8_t relay_id, uint16_t z_shortaddr = 0)
-// #endif
+#else
+uint32_t EncodeLightId(uint8_t relay_id, uint16_t z_shortaddr = 0)
+#endif
 {
   uint8_t mac[6];
   WiFi.macAddress(mac);
@@ -403,12 +402,12 @@ uint32_t EncodeLightId(uint8_t relay_id)
     id |= (1 << 28);
   }
   id |= (relay_id & 0xF);
-// #ifdef USE_ZIGBEE
-//   if ((z_shortaddr) && (!relay_id)) {
-//     // fror Zigbee devices, we have relay_id == 0 and shortaddr != 0
-//     id = (1 << 29) | z_shortaddr;
-//   }
-// #endif
+#ifdef USE_ZIGBEE
+  if ((z_shortaddr) && (!relay_id)) {
+    // fror Zigbee devices, we have relay_id == 0 and shortaddr != 0
+    id = (1 << 29) | z_shortaddr;
+  }
+#endif
 
   return id;
 }
@@ -419,11 +418,11 @@ uint32_t EncodeLightId(uint8_t relay_id)
 // Zigbee:
 // If the Id encodes a Zigbee device (meaning bit 29 is set)
 // it returns 0 and sets the 'shortaddr' to the device short address
-// #ifndef USE_ZIGBEE
+#ifndef USE_ZIGBEE
 uint32_t DecodeLightId(uint32_t hue_id)
-// #else
-// uint32_t DecodeLightId(uint32_t hue_id, uint16_t * shortaddr = nullptr)
-// #endif
+#else
+uint32_t DecodeLightId(uint32_t hue_id, uint16_t * shortaddr = nullptr)
+#endif
 {
   uint8_t relay_id = hue_id & 0xF;
   if (hue_id & (1 << 28)) {   // check if bit 25 is set, if so we have
@@ -432,13 +431,13 @@ uint32_t DecodeLightId(uint32_t hue_id)
   if (0 == relay_id) {        // special value 0 is actually relay #32
     relay_id = 32;
   }
-// #ifdef USE_ZIGBEE
-//   if (hue_id & (1 << 29)) {
-//     // this is actually a Zigbee ID
-//     if (shortaddr) { *shortaddr = hue_id & 0xFFFF; }
-//     relay_id = 0;
-//   }
-// #endif // USE_ZIGBEE
+#ifdef USE_ZIGBEE
+  if (hue_id & (1 << 29)) {
+    // this is actually a Zigbee ID
+    if (shortaddr) { *shortaddr = hue_id & 0xFFFF; }
+    relay_id = 0;
+  }
+#endif // USE_ZIGBEE
   return relay_id;
 }
 
@@ -462,7 +461,7 @@ uint32_t findEchoGeneration(void) {
     gen = 1;        // if no user-agent, also revert to gen v1
   }
 
-  AddLog_P2(LOG_LEVEL_DEBUG_MORE, D_LOG_HTTP D_HUE " User-Agent: %s, gen=%d", user_agent.c_str(), gen);  // Header collection is set in xdrv_01_webserver.ino, in StartWebserver()
+  AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR(D_LOG_HTTP D_HUE " User-Agent: %s, gen=%d"), user_agent.c_str(), gen);  // Header collection is set in xdrv_01_webserver.ino, in StartWebserver()
 
   return gen;
 }
@@ -474,9 +473,9 @@ void HueGlobalConfig(String *path) {
   response = F("{\"lights\":{");
   bool appending = false;                             // do we need to add a comma to append
   CheckHue(&response, appending);
-// #ifdef USE_ZIGBEE
-//   ZigbeeCheckHue(&response, appending);
-// #endif // USE_ZIGBEE
+#ifdef USE_ZIGBEE
+  ZigbeeCheckHue(&response, appending);
+#endif // USE_ZIGBEE
   response += F("},\"groups\":{},\"schedules\":{},\"config\":");
   HueConfigResponse(&response);
   response += "}";
@@ -546,10 +545,8 @@ void HueLightsCommand(uint8_t device, uint32_t device_id, String &response) {
         switch(on)
         {
           case false : ExecuteCommandPower(device, POWER_OFF, SRC_HUE);
-                      //response.replace("{re", "false");
                       break;
           case true  : ExecuteCommandPower(device, POWER_ON, SRC_HUE);
-                      //response.replace("{re", "true");
                       break;
         }
         response += buf;
@@ -708,31 +705,31 @@ void HueLights(String *path)
   uint32_t device_id;   // the raw device_id used by Hue emulation
   uint8_t maxhue = (devices_present > MAX_HUE_DEVICES) ? MAX_HUE_DEVICES : devices_present;
 
-  path->remove(0,path->indexOf("/lights"));          // Remove until /lights
-  if (path->endsWith("/lights")) {                   // Got /lights
+  path->remove(0,path->indexOf(F("/lights")));          // Remove until /lights
+  if (path->endsWith(F("/lights"))) {                   // Got /lights
     response = "{";
     bool appending = false;
     CheckHue(&response, appending);
-// #ifdef USE_ZIGBEE
-//     ZigbeeCheckHue(&response, appending);
-// #endif // USE_ZIGBEE
+#ifdef USE_ZIGBEE
+    ZigbeeCheckHue(&response, appending);
+#endif // USE_ZIGBEE
 #ifdef USE_SCRIPT_HUE
     Script_Check_Hue(&response);
 #endif
     response += "}";
   }
-  else if (path->endsWith("/state")) {               // Got ID/state
+  else if (path->endsWith(F("/state"))) {               // Got ID/state
     path->remove(0,8);                               // Remove /lights/
-    path->remove(path->indexOf("/state"));           // Remove /state
+    path->remove(path->indexOf(F("/state")));           // Remove /state
     device_id = atoi(path->c_str());
     device = DecodeLightId(device_id);
-// #ifdef USE_ZIGBEE
-//     uint16_t shortaddr;
-//     device = DecodeLightId(device_id, &shortaddr);
-//     if (shortaddr) {
-//       return ZigbeeHandleHue(shortaddr, device_id, response);
-//     }
-// #endif // USE_ZIGBEE
+#ifdef USE_ZIGBEE
+    uint16_t shortaddr;
+    device = DecodeLightId(device_id, &shortaddr);
+    if (shortaddr) {
+      return ZigbeeHandleHue(shortaddr, device_id, response);
+    }
+#endif // USE_ZIGBEE
 
 #ifdef USE_SCRIPT_HUE
     if (device > devices_present) {
@@ -744,11 +741,19 @@ void HueLights(String *path)
     }
 
   }
-  else if(path->indexOf("/lights/") >= 0) {          // Got /lights/ID
-    AddLog_P2(LOG_LEVEL_DEBUG_MORE, "/lights path=%s", path->c_str());
+  else if(path->indexOf(F("/lights/")) >= 0) {          // Got /lights/ID
+    AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("/lights path=%s"), path->c_str());
     path->remove(0,8);                               // Remove /lights/
     device_id = atoi(path->c_str());
     device = DecodeLightId(device_id);
+#ifdef USE_ZIGBEE
+    uint16_t shortaddr;
+    device = DecodeLightId(device_id, &shortaddr);
+    if (shortaddr) {
+      ZigbeeHueStatus(&response, shortaddr);
+      goto exit;
+    }
+#endif // USE_ZIGBEE
 
 #ifdef USE_SCRIPT_HUE
     if (device > devices_present) {
@@ -791,9 +796,9 @@ void HueGroups(String *path)
       lights += "\"";
     }
     
-// #ifdef USE_ZIGBEE
-//     ZigbeeHueGroups(&response);
-// #endif // USE_ZIGBEE
+#ifdef USE_ZIGBEE
+    ZigbeeHueGroups(&response);
+#endif // USE_ZIGBEE
     response.replace("{l1", lights);
     HueLightStatus1(1, &response);
     response += F("}");
