@@ -39,14 +39,14 @@ char* Format(char* output, const char* input, int size)
         char tmp[size];
         if (strchr(token, 'd')) {
           snprintf_P(tmp, size, PSTR("%s%c0%dd"), output, '%', digits);
-          snprintf_P(output, size, tmp, ESP.getChipId() & 0x1fff);            // %04d - short chip ID in dec, like in hostname
+          snprintf_P(output, size, tmp, ESP_getChipId() & 0x1fff);            // %04d - short chip ID in dec, like in hostname
         } else {
           snprintf_P(tmp, size, PSTR("%s%c0%dX"), output, '%', digits);
-          snprintf_P(output, size, tmp, ESP.getChipId());                   // %06X - full chip ID in hex
+          snprintf_P(output, size, tmp, ESP_getChipId());                   // %06X - full chip ID in hex
         }
       } else {
         if (strchr(token, 'd')) {
-          snprintf_P(output, size, PSTR("%s%d"), output, ESP.getChipId());  // %d - full chip ID in dec
+          snprintf_P(output, size, PSTR("%s%d"), output, ESP_getChipId());  // %d - full chip ID in dec
           digits = 8;
         }
       }
@@ -61,10 +61,10 @@ char* Format(char* output, const char* input, int size)
 char* GetOtaUrl(char *otaurl, size_t otaurl_size)
 {
   if (strstr(SettingsText(SET_OTAURL), "%04d") != nullptr) {     // OTA url contains placeholder for chip ID
-    snprintf(otaurl, otaurl_size, SettingsText(SET_OTAURL), ESP.getChipId() & 0x1fff);
+    snprintf(otaurl, otaurl_size, SettingsText(SET_OTAURL), ESP_getChipId() & 0x1fff);
   }
   else if (strstr(SettingsText(SET_OTAURL), "%d") != nullptr) {  // OTA url contains placeholder for chip ID
-    snprintf_P(otaurl, otaurl_size, SettingsText(SET_OTAURL), ESP.getChipId());
+    snprintf_P(otaurl, otaurl_size, SettingsText(SET_OTAURL), ESP_getChipId());
   }
   else {
     strlcpy(otaurl, SettingsText(SET_OTAURL), otaurl_size);
@@ -130,11 +130,11 @@ char* GetTopic_P(char *stopic, uint32_t prefix, char *topic, const char* subtopi
   return stopic;
 }
 
-char* GetGroupTopic_P(char *stopic, const char* subtopic)
+char* GetGroupTopic_P(char *stopic, const char* subtopic, uint32_t itopic)
 {
   // SetOption75 0: %prefix%/nothing/%topic% = cmnd/nothing/<grouptopic>/#
   // SetOption75 1: cmnd/<grouptopic>
-  return GetTopic_P(stopic, (Settings.flag3.grouptopic_mode) ? CMND +8 : CMND, SettingsText(SET_MQTT_GRP_TOPIC), subtopic);  // SetOption75 - GroupTopic replaces %topic% (0) or fixed topic cmnd/grouptopic (1)
+  return GetTopic_P(stopic, (Settings.flag3.grouptopic_mode) ? CMND +8 : CMND, SettingsText(itopic), subtopic);  // SetOption75 - GroupTopic replaces %topic% (0) or fixed topic cmnd/grouptopic (1)
 }
 
 char* GetFallbackTopic_P(char *stopic, const char* subtopic)
@@ -210,6 +210,7 @@ void SetDevicePower(power_t rpower, uint32_t source)
   if (XdrvCall(FUNC_SET_DEVICE_POWER)) {  // Set power state and stop if serviced
     // Serviced
   }
+#ifdef ESP8266
   else if ((SONOFF_DUAL == my_module_type) || (CH4 == my_module_type)) {
     Serial.write(0xA0);
     Serial.write(0x04);
@@ -221,7 +222,9 @@ void SetDevicePower(power_t rpower, uint32_t source)
   else if (EXS_RELAY == my_module_type) {
     SetLatchingRelay(rpower, 1);
   }
-  else {
+  else
+#endif  // ESP8266
+  {
     for (uint32_t i = 0; i < devices_present; i++) {
       power_t state = rpower &1;
       if (i < MAX_RELAYS) {
@@ -279,9 +282,11 @@ void SetAllPower(uint32_t state, uint32_t source)
 
 void SetPowerOnState(void)
 {
+#ifdef ESP8266
   if (MOTOR == my_module_type) {
     Settings.poweronstate = POWER_ALL_ON;   // Needs always on else in limbo!
   }
+#endif  // ESP8266
   if (POWER_ALL_ALWAYS_ON == Settings.poweronstate) {
     SetDevicePower(1, SRC_RESTART);
   } else {
@@ -334,7 +339,7 @@ void SetPowerOnState(void)
 void SetLedPowerIdx(uint32_t led, uint32_t state)
 {
   if ((99 == pin[GPIO_LEDLNK]) && (0 == led)) {  // Legacy - LED1 is link led only if LED2 is present
-    if (pin[GPIO_LED2] < 99) {
+    if (pin[GPIO_LED1 +1] < 99) {
       led = 1;
     }
   }
@@ -624,8 +629,8 @@ void MqttShowState(void)
 #endif
 
   ResponseAppend_P(PSTR(",\"" D_JSON_HEAPSIZE "\":%d,\"SleepMode\":\"%s\",\"Sleep\":%u,\"LoadAvg\":%u,\"MqttCount\":%u"),
-    ESP.getFreeHeap()/1024, GetTextIndexed(stemp1, sizeof(stemp1), Settings.flag3.sleep_normal, kSleepMode),  // SetOption60 - Enable normal sleep instead of dynamic sleep
-    sleep, loop_load_avg, MqttConnectCount());
+    ESP_getFreeHeap()/1024, GetTextIndexed(stemp1, sizeof(stemp1), Settings.flag3.sleep_normal, kSleepMode),  // SetOption60 - Enable normal sleep instead of dynamic sleep
+    ssleep, loop_load_avg, MqttConnectCount());
 
   for (uint32_t i = 1; i <= devices_present; i++) {
 #ifdef USE_LIGHT
@@ -814,6 +819,18 @@ void PerformEverySecond(void)
       }
     }
   }
+
+#ifndef ARDUINO_ESP8266_RELEASE_2_3_0
+  // Wifi keep alive to send Gratuitous ARP
+  wifiKeepAlive();
+#endif  // ARDUINO_ESP8266_RELEASE_2_3_0
+
+
+#ifdef ESP32
+  if (11 == uptime) {      // Perform one-time ESP32 houskeeping
+    ESP_getSketchSize();   // Init sketchsize as it can take up to 2 seconds
+  }
+#endif
 }
 
 /*-------------------------------------------------------------------------------------------*\
@@ -898,9 +915,11 @@ void Every250mSeconds(void)
   }
   if (Settings.ledstate &1 && (pin[GPIO_LEDLNK] < 99 || !(blinks || restart_flag || ota_state_flag)) ) {
     bool tstate = power & Settings.ledmask;
+#ifdef ESP8266
     if ((SONOFF_TOUCH == my_module_type) || (SONOFF_T11 == my_module_type) || (SONOFF_T12 == my_module_type) || (SONOFF_T13 == my_module_type)) {
       tstate = (!power) ? 1 : 0;                          // As requested invert signal for Touch devices to find them in the dark
     }
+#endif  // ESP8266
     SetLedPower(tstate);
   }
 
@@ -1208,13 +1227,14 @@ void SerialInput(void)
     delay(0);
     serial_in_byte = Serial.read();
 
+#ifdef ESP8266
 /*-------------------------------------------------------------------------------------------*\
  * Sonoff dual and ch4 19200 baud serial interface
 \*-------------------------------------------------------------------------------------------*/
     if ((SONOFF_DUAL == my_module_type) || (CH4 == my_module_type)) {
       serial_in_byte = ButtonSerial(serial_in_byte);
     }
-
+#endif  // ESP8266
 /*-------------------------------------------------------------------------------------------*/
 
     if (XdrvCall(FUNC_SERIAL)) {
@@ -1286,12 +1306,24 @@ void SerialInput(void)
     char hex_char[(serial_in_byte_counter * 2) + 2];
     bool assume_json = (!Settings.flag.mqtt_serial_raw && (serial_in_buffer[0] == '{'));
     Response_P(PSTR("{\"" D_JSON_SERIALRECEIVED "\":%s%s%s}"),
-      (assume_json) ? "" : """",
+      (assume_json) ? "" : "\"",
       (Settings.flag.mqtt_serial_raw) ? ToHex_P((unsigned char*)serial_in_buffer, serial_in_byte_counter, hex_char, sizeof(hex_char)) : serial_in_buffer,
-      (assume_json) ? "" : """");
+      (assume_json) ? "" : "\"");
     MqttPublishPrefixTopic_P(RESULT_OR_TELE, PSTR(D_JSON_SERIALRECEIVED));
     XdrvRulesProcess();
     serial_in_byte_counter = 0;
+  }
+}
+
+/********************************************************************************************/
+
+void ResetPwm(void)
+{
+  for (uint32_t i = 0; i < MAX_PWMS; i++) {     // Basic PWM control only
+    if (pin[GPIO_PWM1 +i] < 99) {
+      analogWrite(pin[GPIO_PWM1 +i], bitRead(pwm_inverted, i) ? Settings.pwm_range : 0);
+//      analogWrite(pin[GPIO_PWM1 +i], bitRead(pwm_inverted, i) ? Settings.pwm_range - Settings.pwm_value[i] : Settings.pwm_value[i]);
+    }
   }
 }
 
@@ -1303,7 +1335,15 @@ void GpioInit(void)
 
   if (!ValidModule(Settings.module)) {
     uint32_t module = MODULE;
-    if (!ValidModule(MODULE)) { module = SONOFF_BASIC; }
+    if (!ValidModule(MODULE)) {
+#ifdef ESP8266
+      module = SONOFF_BASIC;
+#endif  // ESP8266
+#ifdef ESP32
+      module = WEMOS;
+#endif  // ESP32
+    }
+
     Settings.module = module;
     Settings.last_module = module;
   }
@@ -1400,7 +1440,9 @@ void GpioInit(void)
     if (mpin) pin[mpin] = i;
   }
 
+#ifdef ESP8266
   if ((2 == pin[GPIO_TXD]) || (H801 == my_module_type)) { Serial.set_tx(2); }
+#endif  // ESP8266
 
   analogWriteRange(Settings.pwm_range);      // Default is 1023 (Arduino.h)
   analogWriteFreq(Settings.pwm_frequency);   // Default is 1000 (core_esp8266_wiring_pwm.c)
@@ -1421,6 +1463,18 @@ void GpioInit(void)
   soft_spi_flg = ((pin[GPIO_SSPI_CS] < 99) && (pin[GPIO_SSPI_SCLK] < 99) && ((pin[GPIO_SSPI_MOSI] < 99) || (pin[GPIO_SSPI_MOSI] < 99)));
 #endif  // USE_SPI
 
+  // Set any non-used GPIO to INPUT - Related to resetPins() in support_legacy_cores.ino
+  // Doing it here solves relay toggles at restart.
+  for (uint32_t i = 0; i < sizeof(my_module.io); i++) {
+    mpin = ValidPin(i, my_module.io[i]);
+//    AddLog_P2(LOG_LEVEL_DEBUG, PSTR("INI: gpio pin %d, mpin %d"), i, mpin);
+    if (((i < 6) || (i > 11)) && (0 == mpin)) {  // Skip SPI flash interface
+      if (!((1 == i) || (3 == i))) {             // Skip serial
+        pinMode(i, INPUT);
+      }
+    }
+  }
+
 #ifdef USE_I2C
   i2c_flg = ((pin[GPIO_I2C_SCL] < 99) && (pin[GPIO_I2C_SDA] < 99));
   if (i2c_flg) {
@@ -1433,6 +1487,7 @@ void GpioInit(void)
   if (XdrvCall(FUNC_MODULE_INIT)) {
     // Serviced
   }
+#ifdef ESP8266
   else if (YTF_IR_BRIDGE == my_module_type) {
     ClaimSerial();  // Stop serial loopback mode
 //    devices_present = 1;
@@ -1450,6 +1505,7 @@ void GpioInit(void)
     SetSerial(19200, TS_SERIAL_8N1);
   }
 #endif  // USE_SONOFF_SC
+#endif  // ESP8266
 
   for (uint32_t i = 0; i < MAX_PWMS; i++) {     // Basic PWM control only
     if (pin[GPIO_PWM1 +i] < 99) {
@@ -1468,10 +1524,12 @@ void GpioInit(void)
     if (pin[GPIO_REL1 +i] < 99) {
       pinMode(pin[GPIO_REL1 +i], OUTPUT);
       devices_present++;
+#ifdef ESP8266
       if (EXS_RELAY == my_module_type) {
         digitalWrite(pin[GPIO_REL1 +i], bitRead(rel_inverted, i) ? 1 : 0);
         if (i &1) { devices_present--; }
       }
+#endif  // ESP8266
     }
   }
 

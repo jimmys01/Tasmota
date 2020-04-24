@@ -17,6 +17,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
 #ifdef USE_SCRIPT
 #ifndef USE_RULES
 /*********************************************************************************************\
@@ -59,6 +60,39 @@ keywords if then else endif, or, and are better readable for beginners (others m
 #define PMEM_SIZE sizeof(Settings.script_pram)
 #define SCRIPT_MAXPERM (PMEM_SIZE)-4/sizeof(float)
 #define MAX_SCRIPT_SIZE MAX_RULE_SIZE*MAX_RULE_SETS
+
+
+uint32_t EncodeLightId(uint8_t relay_id);
+uint32_t DecodeLightId(uint32_t hue_id);
+
+#if defined(ESP32) && defined(ESP32_SCRIPT_SIZE) && !defined(USE_24C256) && !defined(USE_SCRIPT_FATFS)
+
+#include "FS.h"
+#include "SPIFFS.h"
+void SaveFile(const char *name,const uint8_t *buf,uint32_t len) {
+  File file = SPIFFS.open(name, FILE_WRITE);
+  if (!file) return;
+  file.write(buf, len);
+  file.close();
+}
+
+#define FORMAT_SPIFFS_IF_FAILED true
+uint8_t spiffs_mounted=0;
+
+void LoadFile(const char *name,uint8_t *buf,uint32_t len) {
+  if (!spiffs_mounted) {
+    if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
+          //Serial.println("SPIFFS Mount Failed");
+      return;
+    }
+    spiffs_mounted=1;
+  }
+  File file = SPIFFS.open(name);
+  if (!file) return;
+  file.read(buf, len);
+  file.close();
+}
+#endif
 
 // offsets epoch readings by 1.1.2019 00:00:00 to fit into float with second resolution
 #define EPOCH_OFFSET 1546300800
@@ -1381,7 +1415,7 @@ chknext:
           goto exit;
         }
         if (!strncmp(vname,"heap",4)) {
-          fvar=ESP.getFreeHeap();
+          fvar=ESP_getFreeHeap();
           goto exit;
         }
         if (!strncmp(vname,"hn(",3)) {
@@ -1508,9 +1542,9 @@ chknext:
             lp=GetNumericResult(lp,OPER_EQU,&fvar2,0);
             SCRIPT_SKIP_SPACES
             fvar=fvar1;
-            if ((*opp=='<' && fvar1<fvar2) || 
-                (*opp=='>' && fvar1>fvar2) || 
-                (*opp=='=' && fvar1==fvar2)) 
+            if ((*opp=='<' && fvar1<fvar2) ||
+                (*opp=='>' && fvar1>fvar2) ||
+                (*opp=='=' && fvar1==fvar2))
             {
               if (*lp!='<' && *lp!='>' && *lp!='=' && *lp!=')' && *lp!=SCRIPT_EOL) {
                 float fvar3;
@@ -1759,13 +1793,18 @@ chknext:
             float fvar3;
             lp=GetNumericResult(lp,OPER_EQU,&fvar3,0);
             fvar=SML_SetBaud(fvar1,fvar3);
-          } else {
+          } else if (fvar2==1) {
             char str[SCRIPT_MAXSSIZE];
             lp=GetStringResult(lp,OPER_EQU,str,0);
             fvar=SML_Write(fvar1,str);
+          } else {
+#ifdef ED300L
+            fvar=SML_Status(fvar1);
+#else
+            fvar=0;
+#endif
           }
           lp++;
-          fvar=0;
           len=0;
           goto exit;
         }
@@ -2023,6 +2062,7 @@ char *getop(char *lp, uint8_t *operand) {
 }
 
 
+#ifdef ESP8266
 #if defined(ARDUINO_ESP8266_RELEASE_2_3_0) || defined(ARDUINO_ESP8266_RELEASE_2_4_0) || defined(ARDUINO_ESP8266_RELEASE_2_4_1)
 // All version before core 2.4.2
 // https://github.com/esp8266/Arduino/issues/2557
@@ -2043,6 +2083,12 @@ extern "C" {
 uint16_t GetStack(void) {
   register uint32_t *sp asm("a1");
   return (4 * (sp - g_pcont->stack));
+}
+#endif
+#else
+uint16_t GetStack(void) {
+  register uint8_t *sp asm("a1");
+  return (sp - pxTaskGetStackStart(NULL));
 }
 #endif
 
@@ -3101,7 +3147,7 @@ const char HTTP_FORM_SCRIPT[] PROGMEM =
 
 const char HTTP_FORM_SCRIPT1[] PROGMEM =
     "<div style='text-align:right' id='charNum'> </div>"
-    "<input style='width:3%%;' id='c%d' name='c%d' type='checkbox'%s><b>" D_SCRIPT_ENABLE "</b><br/>"
+    "<label><input style='width:3%%;' id='c%d' name='c%d' type='checkbox'%s><b>" D_SCRIPT_ENABLE "</b></label><br/>"
     "<br><textarea  id='t1' name='t1' rows='8' cols='80' maxlength='%d' style='font-size: 12pt' >";
 
 const char HTTP_FORM_SCRIPT1b[] PROGMEM =
@@ -3324,8 +3370,8 @@ void Script_FileUploadConfiguration(void)
 
   if (!HttpCheckPriviledgedAccess()) { return; }
 
-  if (WebServer->hasArg("download")) {
-    String stmp = WebServer->arg("download");
+  if (Webserver->hasArg("download")) {
+    String stmp = Webserver->arg("download");
     char *cp=(char*)stmp.c_str();
     if (DownloadFile(cp)) {
       // is directory
@@ -3369,7 +3415,7 @@ void script_upload(void) {
 
   //AddLog_P(LOG_LEVEL_INFO, PSTR("HTP: file upload"));
 
-  HTTPUpload& upload = WebServer->upload();
+  HTTPUpload& upload = Webserver->upload();
   if (upload.status == UPLOAD_FILE_START) {
     char npath[48];
     sprintf(npath,"%s/%s",path,upload.filename.c_str());
@@ -3385,7 +3431,7 @@ void script_upload(void) {
     }
   } else {
     Web.upload_error=1;
-    WebServer->send(500, "text/plain", "500: couldn't create file");
+    Webserver->send(500, "text/plain", "500: couldn't create file");
   }
 }
 
@@ -3411,8 +3457,8 @@ uint8_t DownloadFile(char *file) {
 
     uint32_t flen=download_file.size();
 
-    download_Client = WebServer->client();
-    WebServer->setContentLength(flen);
+    download_Client = Webserver->client();
+    Webserver->setContentLength(flen);
 
     char attachment[100];
     char *cp;
@@ -3423,7 +3469,7 @@ uint8_t DownloadFile(char *file) {
       }
     }
     snprintf_P(attachment, sizeof(attachment), PSTR("attachment; filename=%s"),cp);
-    WebServer->sendHeader(F("Content-Disposition"), attachment);
+    Webserver->sendHeader(F("Content-Disposition"), attachment);
     WSSend(200, CT_STREAM, "");
 
     uint8_t buff[512];
@@ -3455,7 +3501,7 @@ uint8_t DownloadFile(char *file) {
 void HandleScriptTextareaConfiguration(void) {
   if (!HttpCheckPriviledgedAccess()) { return; }
 
-  if (WebServer->hasArg("save")) {
+  if (Webserver->hasArg("save")) {
     ScriptSaveSettings();
     HandleConfiguration();
     return;
@@ -3469,13 +3515,13 @@ void HandleScriptConfiguration(void) {
     AddLog_P(LOG_LEVEL_DEBUG, S_LOG_HTTP, S_CONFIGURE_SCRIPT);
 
 #ifdef USE_SCRIPT_FATFS
-    if (WebServer->hasArg("d1")) {
+    if (Webserver->hasArg("d1")) {
       DownloadFile(glob_script_mem.flink[0]);
     }
-    if (WebServer->hasArg("d2")) {
+    if (Webserver->hasArg("d2")) {
       DownloadFile(glob_script_mem.flink[1]);
     }
-    if (WebServer->hasArg("upl")) {
+    if (Webserver->hasArg("upl")) {
       Script_FileUploadConfiguration();
     }
 #endif
@@ -3515,14 +3561,14 @@ void HandleScriptConfiguration(void) {
 
 void ScriptSaveSettings(void) {
 
-  if (WebServer->hasArg("c1")) {
+  if (Webserver->hasArg("c1")) {
     bitWrite(Settings.rule_enabled,0,1);
   } else {
     bitWrite(Settings.rule_enabled,0,0);
   }
 
 
-  String str = WebServer->arg("t1");
+  String str = Webserver->arg("t1");
 
   if (*str.c_str()) {
 
@@ -3580,6 +3626,11 @@ void ScriptSaveSettings(void) {
     }
 #endif
 
+#if defined(ESP32) && defined(ESP32_SCRIPT_SIZE) && !defined(USE_24C256) && !defined(USE_SCRIPT_FATFS)
+    if (glob_script_mem.flags&1) {
+      SaveFile("/script.txt",(uint8_t*)glob_script_mem.script_ram,ESP32_SCRIPT_SIZE);
+    }
+#endif
   }
 
   if (glob_script_mem.script_mem) {
@@ -3973,11 +4024,11 @@ void Script_Handle_Hue(String *path) {
   uint8_t device = DecodeLightId(atoi(path->c_str()));
   uint8_t index = device-devices_present-1;
 
-  if (WebServer->args()) {
+  if (Webserver->args()) {
     response = "[";
 
     StaticJsonBuffer<400> jsonBuffer;
-    JsonObject &hue_json = jsonBuffer.parseObject(WebServer->arg((WebServer->args())-1));
+    JsonObject &hue_json = jsonBuffer.parseObject(Webserver->arg((Webserver->args())-1));
     if (hue_json.containsKey("on")) {
 
       response += FPSTR(sHUE_LIGHT_RESPONSE_JSON);
@@ -4419,8 +4470,8 @@ void Script_Check_HTML_Setvars(void) {
 
   if (!HttpCheckPriviledgedAccess()) { return; }
 
-  if (WebServer->hasArg("sv")) {
-    String stmp = WebServer->arg("sv");
+  if (Webserver->hasArg("sv")) {
+    String stmp = Webserver->arg("sv");
     char cmdbuf[64];
     memset(cmdbuf,0,sizeof(cmdbuf));
     char *cp=cmdbuf;
@@ -4703,7 +4754,13 @@ void ScriptWebShow(void) {
 
 
 #ifdef USE_SENDMAIL
+
+#ifdef ESP8266
 void script_send_email_body(BearSSL::WiFiClientSecure_light *client) {
+#else
+void script_send_email_body(WiFiClient *client) {
+#endif
+
 uint8_t msect=Run_Scripter(">m",-2,0);
   if (msect==99) {
     char line[128];
@@ -4797,6 +4854,13 @@ bool Xdrv10(uint8_t function)
 
   switch (function) {
     case FUNC_PRE_INIT:
+    /*
+#ifdef USE_WEBCAM
+      if (Settings.module==ESP32_CAM_AITHINKER) {
+        webcam_setup();
+      }
+#endif
+*/
       // set defaults to rules memory
       glob_script_mem.script_ram=Settings.rules[0];
       glob_script_mem.script_size=MAX_SCRIPT_SIZE;
@@ -4866,6 +4930,21 @@ bool Xdrv10(uint8_t function)
       }
 #endif
 
+
+#if defined(ESP32) && defined(ESP32_SCRIPT_SIZE) && !defined(USE_24C256) && !defined(USE_SCRIPT_FATFS)
+    char *script;
+    script=(char*)calloc(ESP32_SCRIPT_SIZE+4,1);
+    if (!script) break;
+    LoadFile("/script.txt",(uint8_t*)script,ESP32_SCRIPT_SIZE);
+    glob_script_mem.script_ram=script;
+    glob_script_mem.script_size=ESP32_SCRIPT_SIZE;
+    script[ESP32_SCRIPT_SIZE-1]=0;
+    // use rules storage for permanent vars
+    glob_script_mem.script_pram=(uint8_t*)Settings.rules[0];
+    glob_script_mem.script_pram_size=MAX_SCRIPT_SIZE;
+    glob_script_mem.flags=1;
+#endif
+
       // assure permanent memory is 4 byte aligned
       { uint32_t ptr=(uint32_t)glob_script_mem.script_pram;
       ptr&=0xfffffffc;
@@ -4909,13 +4988,13 @@ bool Xdrv10(uint8_t function)
       WSContentSend_P(HTTP_BTN_MENU_RULES);
       break;
     case FUNC_WEB_ADD_HANDLER:
-      WebServer->on("/" WEB_HANDLE_SCRIPT, HandleScriptConfiguration);
-      WebServer->on("/ta",HTTP_POST, HandleScriptTextareaConfiguration);
+      Webserver->on("/" WEB_HANDLE_SCRIPT, HandleScriptConfiguration);
+      Webserver->on("/ta",HTTP_POST, HandleScriptTextareaConfiguration);
 
 #ifdef USE_SCRIPT_FATFS
-      WebServer->on("/u3", HTTP_POST,[]() { WebServer->sendHeader("Location","/u3");WebServer->send(303);},script_upload);
-      WebServer->on("/u3", HTTP_GET,ScriptFileUploadSuccess);
-      WebServer->on("/upl", HTTP_GET,Script_FileUploadConfiguration);
+      Webserver->on("/u3", HTTP_POST,[]() { Webserver->sendHeader("Location","/u3");Webserver->send(303);},script_upload);
+      Webserver->on("/u3", HTTP_GET,ScriptFileUploadSuccess);
+      Webserver->on("/upl", HTTP_GET,Script_FileUploadConfiguration);
 #endif
       break;
 #endif // USE_WEBSERVER
