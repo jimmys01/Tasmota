@@ -346,6 +346,7 @@ void SettingsSaveAll(void)
 
 void UpdateQuickPowerCycle(bool update)
 {
+#ifndef FIRMWARE_MINIMAL
   if (Settings.flag3.fast_power_cycle_disable) { return; }  // SetOption65 - Disable fast power cycle detection for device reset
 
   uint32_t pc_register;
@@ -353,44 +354,44 @@ void UpdateQuickPowerCycle(bool update)
 
 #ifdef ESP8266
   ESP.flashRead(pc_location * SPI_FLASH_SEC_SIZE, (uint32*)&pc_register, sizeof(pc_register));
-#else
+#else  // ESP32
   QPCRead(&pc_register, sizeof(pc_register));
-#endif
-  if (update && ((pc_register & 0xFFFFFFF0) == 0xFFA55AB0)) {
-    uint32_t counter = ((pc_register & 0xF) << 1) & 0xF;
-    if (0 == counter) {  // 4 power cycles in a row
+#endif  // ESP8266 - ESP32
+  if (update && ((pc_register & 0xFFFFFF80) == 0xFFA55A80)) {
+    uint32_t counter = ((pc_register & 0x7F) << 1) & 0x7F;
+    if (0 == counter) {  // 7 power cycles in a row
       SettingsErase(3);  // Quickly reset all settings including QuickPowerCycle flag
       EspRestart();      // And restart
     } else {
       pc_register = 0xFFA55AB0 | counter;
 #ifdef ESP8266
       ESP.flashWrite(pc_location * SPI_FLASH_SEC_SIZE, (uint32*)&pc_register, sizeof(pc_register));
-#else
+#else  // ESP32
       QPCWrite(&pc_register, sizeof(pc_register));
-#endif
+#endif  // ESP8266 - ESP32
       AddLog_P2(LOG_LEVEL_DEBUG, PSTR("QPC: Flag %02X"), counter);
     }
   }
-  else if (pc_register != 0xFFA55ABF) {
-    pc_register = 0xFFA55ABF;
+  else if (pc_register != 0xFFA55AFF) {
+    pc_register = 0xFFA55AFF;
 #ifdef ESP8266
     // Assume flash is default all ones and setting a bit to zero does not need an erase
     if (ESP.flashEraseSector(pc_location)) {
       ESP.flashWrite(pc_location * SPI_FLASH_SEC_SIZE, (uint32*)&pc_register, sizeof(pc_register));
     }
-#else
+#else  // ESP32
     QPCWrite(&pc_register, sizeof(pc_register));
-#endif
+#endif  // ESP8266 - ESP32
     AddLog_P2(LOG_LEVEL_DEBUG, PSTR("QPC: Reset"));
   }
+#endif  // FIRMWARE_MINIMAL
 }
 
 /*********************************************************************************************\
  * Config Settings.text char array support
 \*********************************************************************************************/
 
-uint32_t GetSettingsTextLen(void)
-{
+uint32_t GetSettingsTextLen(void) {
   char* position = Settings.text_pool;
   for (uint32_t size = 0; size < SET_MAX; size++) {
     while (*position++ != '\0') { }
@@ -398,16 +399,28 @@ uint32_t GetSettingsTextLen(void)
   return position - Settings.text_pool;
 }
 
-bool SettingsUpdateText(uint32_t index, const char* replace_me)
-{
+bool settings_text_mutex = false;
+uint32_t settings_text_busy_count = 0;
+
+bool SettingsUpdateFinished(void) {
+  uint32_t wait_loop = 10;
+  while (settings_text_mutex && wait_loop) {  // Wait for any update to finish
+    yield();
+    delayMicroseconds(1);
+    wait_loop--;
+  }
+  return (wait_loop > 0);  // true if finished
+}
+
+bool SettingsUpdateText(uint32_t index, const char* replace_me) {
   if (index >= SET_MAX) {
     return false;  // Setting not supported - internal error
   }
 
   // Make a copy first in case we use source from Settings.text
-  uint32_t replace_len = strlen(replace_me);
+  uint32_t replace_len = strlen_P(replace_me);
   char replace[replace_len +1];
-  memcpy(replace, replace_me, sizeof(replace));
+  memcpy_P(replace, replace_me, sizeof(replace));
 
   uint32_t start_pos = 0;
   uint32_t end_pos = 0;
@@ -436,16 +449,24 @@ bool SettingsUpdateText(uint32_t index, const char* replace_me)
     return false;  // Replace text too long
   }
 
-  if (diff != 0) {
-    // Shift Settings.text up or down
-    memmove_P(Settings.text_pool + start_pos + replace_len, Settings.text_pool + end_pos, char_len - end_pos);
-  }
-  // Replace text
-  memmove_P(Settings.text_pool + start_pos, replace, replace_len);
-  // Fill for future use
-  memset(Settings.text_pool + char_len + diff, 0x00, settings_text_size - char_len - diff);
+  if (settings_text_mutex && !SettingsUpdateFinished()) {
+    settings_text_busy_count++;
+  } else {
+    settings_text_mutex = true;
 
-  AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_CONFIG "CR %d/%d"), GetSettingsTextLen(), settings_text_size);
+    if (diff != 0) {
+      // Shift Settings.text up or down
+      memmove_P(Settings.text_pool + start_pos + replace_len, Settings.text_pool + end_pos, char_len - end_pos);
+    }
+    // Replace text
+    memmove_P(Settings.text_pool + start_pos, replace, replace_len);
+    // Fill for future use
+    memset(Settings.text_pool + char_len + diff, 0x00, settings_text_size - char_len - diff);
+
+    settings_text_mutex = false;
+  }
+
+  AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_CONFIG "CR %d/%d, Busy %d"), GetSettingsTextLen(), settings_text_size, settings_text_busy_count);
 
   return true;
 }
@@ -457,6 +478,7 @@ char* SettingsText(uint32_t index)
   if (index >= SET_MAX) {
     position += settings_text_size -1;  // Setting not supported - internal error - return empty string
   } else {
+    SettingsUpdateFinished();
     for (;index > 0; index--) {
       while (*position++ != '\0') { }
     }
@@ -713,6 +735,12 @@ void SettingsDefaultSet2(void)
 {
   memset((char*)&Settings +16, 0x00, sizeof(Settings) -16);
 
+  // this little trick allows GCC to optimize the assignment by grouping values and doing only ORs
+  SysBitfield   flag = { 0 };
+  SysBitfield2  flag2 = { 0 };
+  SysBitfield3  flag3 = { 0 };
+  SysBitfield4  flag4 = { 0 };
+
 #ifdef ESP8266
 //  Settings.config_version = 0;  // ESP8266 (Has been 0 for long time)
 #endif  // ESP8266
@@ -720,13 +748,13 @@ void SettingsDefaultSet2(void)
   Settings.config_version = 1;  // ESP32
 #endif  // ESP32
 
-  Settings.flag.stop_flash_rotate = APP_FLASH_CYCLE;
-  Settings.flag.global_state = APP_ENABLE_LEDLINK;
-  Settings.flag3.sleep_normal = APP_NORMAL_SLEEP;
-  Settings.flag3.no_power_feedback = APP_NO_RELAY_SCAN;
-  Settings.flag3.fast_power_cycle_disable = APP_DISABLE_POWERCYCLE;
-  Settings.flag3.bootcount_update = DEEPSLEEP_BOOTCOUNT;
-  Settings.flag3.compatibility_check = OTA_COMPATIBILITY;
+  flag.stop_flash_rotate |= APP_FLASH_CYCLE;
+  flag.global_state |= APP_ENABLE_LEDLINK;
+  flag3.sleep_normal |= APP_NORMAL_SLEEP;
+  flag3.no_power_feedback |= APP_NO_RELAY_SCAN;
+  flag3.fast_power_cycle_disable |= APP_DISABLE_POWERCYCLE;
+  flag3.bootcount_update |= DEEPSLEEP_BOOTCOUNT;
+  flag3.compatibility_check |= OTA_COMPATIBILITY;
   Settings.save_data = SAVE_DATA;
   Settings.param[P_BACKLOG_DELAY] = MIN_BACKLOG_DELAY;
   Settings.param[P_BOOT_LOOP_OFFSET] = BOOT_LOOP_OFFSET;  // SetOption36
@@ -737,25 +765,33 @@ void SettingsDefaultSet2(void)
   }
 
   // Module
-//  Settings.flag.interlock = 0;
-  Settings.interlock[0] = 0xFF;         // Legacy support using all relays in one interlock group
+  flag.interlock |= APP_INTERLOCK_MODE;
+  Settings.interlock[0] = APP_INTERLOCK_GROUP_1;
+  Settings.interlock[1] = APP_INTERLOCK_GROUP_2;
+  Settings.interlock[2] = APP_INTERLOCK_GROUP_3;
+  Settings.interlock[3] = APP_INTERLOCK_GROUP_4;
   Settings.module = MODULE;
+  Settings.fallback_module = FALLBACK_MODULE;
   ModuleDefault(WEMOS);
-//  for (uint32_t i = 0; i < sizeof(Settings.my_gp); i++) { Settings.my_gp.io[i] = GPIO_NONE; }
-  SettingsUpdateText(SET_FRIENDLYNAME1, FRIENDLY_NAME);
-  SettingsUpdateText(SET_FRIENDLYNAME2, FRIENDLY_NAME"2");
-  SettingsUpdateText(SET_FRIENDLYNAME3, FRIENDLY_NAME"3");
-  SettingsUpdateText(SET_FRIENDLYNAME4, FRIENDLY_NAME"4");
-  SettingsUpdateText(SET_OTAURL, OTA_URL);
+//  for (uint32_t i = 0; i < ARRAY_SIZE(Settings.my_gp.io); i++) { Settings.my_gp.io[i] = GPIO_NONE; }
+  SettingsUpdateText(SET_FRIENDLYNAME1, PSTR(FRIENDLY_NAME));
+  SettingsUpdateText(SET_FRIENDLYNAME2, PSTR(FRIENDLY_NAME"2"));
+  SettingsUpdateText(SET_FRIENDLYNAME3, PSTR(FRIENDLY_NAME"3"));
+  SettingsUpdateText(SET_FRIENDLYNAME4, PSTR(FRIENDLY_NAME"4"));
+  SettingsUpdateText(SET_DEVICENAME, SettingsText(SET_FRIENDLYNAME1));
+  SettingsUpdateText(SET_OTAURL, PSTR(OTA_URL));
 
   // Power
-  Settings.flag.save_state = SAVE_STATE;
+  flag.save_state |= SAVE_STATE;
   Settings.power = APP_POWER;
   Settings.poweronstate = APP_POWERON_STATE;
   Settings.blinktime = APP_BLINKTIME;
   Settings.blinkcount = APP_BLINKCOUNT;
   Settings.ledstate = APP_LEDSTATE;
   Settings.ledmask = APP_LEDMASK;
+//  Settings.ledpwm_off = 0;
+  Settings.ledpwm_on = 255;
+//  Settings.ledpwm_mask = 0;
   Settings.pulse_timer[0] = APP_PULSETIME;
 //  for (uint32_t i = 1; i < MAX_PULSETIMERS; i++) { Settings.pulse_timer[i] = 0; }
 
@@ -766,9 +802,18 @@ void SettingsDefaultSet2(void)
   Settings.serial_delimiter = 0xff;
   Settings.seriallog_level = SERIAL_LOG_LEVEL;
 
+  // Ethernet
+  flag4.network_ethernet |= 1;
+#ifdef ESP32
+  Settings.eth_type = ETH_TYPE;
+  Settings.eth_clk_mode = ETH_CLKMODE;
+  Settings.eth_address = ETH_ADDR;
+#endif
+
   // Wifi
-  Settings.flag3.use_wifi_scan = WIFI_SCAN_AT_RESTART;
-  Settings.flag3.use_wifi_rescan = WIFI_SCAN_REGULARLY;
+  flag4.network_wifi |= 1;
+  flag3.use_wifi_scan |= WIFI_SCAN_AT_RESTART;
+  flag3.use_wifi_rescan |= WIFI_SCAN_REGULARLY;
   Settings.wifi_output_power = 170;
   Settings.param[P_ARP_GRATUITOUS] = WIFI_ARP_INTERVAL;
   ParseIp(&Settings.ip_address[0], WIFI_IP_ADDRESS);
@@ -777,50 +822,50 @@ void SettingsDefaultSet2(void)
   ParseIp(&Settings.ip_address[3], WIFI_DNS);
   Settings.sta_config = WIFI_CONFIG_TOOL;
 //  Settings.sta_active = 0;
-  SettingsUpdateText(SET_STASSID1, STA_SSID1);
-  SettingsUpdateText(SET_STASSID2, STA_SSID2);
-  SettingsUpdateText(SET_STAPWD1, STA_PASS1);
-  SettingsUpdateText(SET_STAPWD2, STA_PASS2);
+  SettingsUpdateText(SET_STASSID1, PSTR(STA_SSID1));
+  SettingsUpdateText(SET_STASSID2, PSTR(STA_SSID2));
+  SettingsUpdateText(SET_STAPWD1, PSTR(STA_PASS1));
+  SettingsUpdateText(SET_STAPWD2, PSTR(STA_PASS2));
   SettingsUpdateText(SET_HOSTNAME, WIFI_HOSTNAME);
 
   // Syslog
-  SettingsUpdateText(SET_SYSLOG_HOST, SYS_LOG_HOST);
+  SettingsUpdateText(SET_SYSLOG_HOST, PSTR(SYS_LOG_HOST));
   Settings.syslog_port = SYS_LOG_PORT;
   Settings.syslog_level = SYS_LOG_LEVEL;
 
   // Webserver
-  Settings.flag2.emulation = EMULATION;
-  Settings.flag3.gui_hostname_ip = GUI_SHOW_HOSTNAME;
-  Settings.flag3.mdns_enabled = MDNS_ENABLED;
+  flag2.emulation |= EMULATION;
+  flag3.gui_hostname_ip |= GUI_SHOW_HOSTNAME;
+  flag3.mdns_enabled |= MDNS_ENABLED;
   Settings.webserver = WEB_SERVER;
   Settings.weblog_level = WEB_LOG_LEVEL;
-  SettingsUpdateText(SET_WEBPWD, WEB_PASSWORD);
-  SettingsUpdateText(SET_CORS, CORS_DOMAIN);
+  SettingsUpdateText(SET_WEBPWD, PSTR(WEB_PASSWORD));
+  SettingsUpdateText(SET_CORS, PSTR(CORS_DOMAIN));
 
   // Button
-  Settings.flag.button_restrict = KEY_DISABLE_MULTIPRESS;
-  Settings.flag.button_swap = KEY_SWAP_DOUBLE_PRESS;
-  Settings.flag.button_single = KEY_ONLY_SINGLE_PRESS;
+  flag.button_restrict |= KEY_DISABLE_MULTIPRESS;
+  flag.button_swap |= KEY_SWAP_DOUBLE_PRESS;
+  flag.button_single |= KEY_ONLY_SINGLE_PRESS;
   Settings.param[P_HOLD_TIME] = KEY_HOLD_TIME;  // Default 4 seconds hold time
 
   // Switch
   for (uint32_t i = 0; i < MAX_SWITCHES; i++) { Settings.switchmode[i] = SWITCH_MODE; }
 
   // MQTT
-  Settings.flag.mqtt_enabled = MQTT_USE;
-  Settings.flag.mqtt_response = MQTT_RESULT_COMMAND;
-  Settings.flag.mqtt_offline = MQTT_LWT_MESSAGE;
-  Settings.flag.mqtt_power_retain = MQTT_POWER_RETAIN;
-  Settings.flag.mqtt_button_retain = MQTT_BUTTON_RETAIN;
-  Settings.flag.mqtt_switch_retain = MQTT_SWITCH_RETAIN;
-  Settings.flag.mqtt_sensor_retain = MQTT_SENSOR_RETAIN;
-//  Settings.flag.mqtt_serial = 0;
-  Settings.flag.device_index_enable = MQTT_POWER_FORMAT;
-  Settings.flag3.time_append_timezone = MQTT_APPEND_TIMEZONE;
-  Settings.flag3.button_switch_force_local = MQTT_BUTTON_SWITCH_FORCE_LOCAL;
-  Settings.flag3.no_hold_retain = MQTT_NO_HOLD_RETAIN;
-  Settings.flag3.use_underscore = MQTT_INDEX_SEPARATOR;
-  Settings.flag3.grouptopic_mode = MQTT_GROUPTOPIC_FORMAT;
+  flag.mqtt_enabled |= MQTT_USE;
+  flag.mqtt_response |= MQTT_RESULT_COMMAND;
+  flag.mqtt_offline |= MQTT_LWT_MESSAGE;
+  flag.mqtt_power_retain |= MQTT_POWER_RETAIN;
+  flag.mqtt_button_retain |= MQTT_BUTTON_RETAIN;
+  flag.mqtt_switch_retain |= MQTT_SWITCH_RETAIN;
+  flag.mqtt_sensor_retain |= MQTT_SENSOR_RETAIN;
+//  flag.mqtt_serial |= 0;
+  flag.device_index_enable |= MQTT_POWER_FORMAT;
+  flag3.time_append_timezone |= MQTT_APPEND_TIMEZONE;
+  flag3.button_switch_force_local |= MQTT_BUTTON_SWITCH_FORCE_LOCAL;
+  flag3.no_hold_retain |= MQTT_NO_HOLD_RETAIN;
+  flag3.use_underscore |= MQTT_INDEX_SEPARATOR;
+  flag3.grouptopic_mode |= MQTT_GROUPTOPIC_FORMAT;
   SettingsUpdateText(SET_MQTT_HOST, MQTT_HOST);
   Settings.mqtt_port = MQTT_PORT;
   SettingsUpdateText(SET_MQTT_CLIENT, MQTT_CLIENT_ID);
@@ -839,13 +884,13 @@ void SettingsDefaultSet2(void)
   SettingsUpdateText(SET_STATE_TXT2, MQTT_STATUS_ON);
   SettingsUpdateText(SET_STATE_TXT3, MQTT_CMND_TOGGLE);
   SettingsUpdateText(SET_STATE_TXT4, MQTT_CMND_HOLD);
-  char fingerprint[60];
-  strlcpy(fingerprint, MQTT_FINGERPRINT1, sizeof(fingerprint));
+  char fingerprint[64];
+  strncpy_P(fingerprint, PSTR(MQTT_FINGERPRINT1), sizeof(fingerprint));
   char *p = fingerprint;
   for (uint32_t i = 0; i < 20; i++) {
     Settings.mqtt_fingerprint[0][i] = strtol(p, &p, 16);
   }
-  strlcpy(fingerprint, MQTT_FINGERPRINT2, sizeof(fingerprint));
+  strncpy_P(fingerprint, PSTR(MQTT_FINGERPRINT2), sizeof(fingerprint));
   p = fingerprint;
   for (uint32_t i = 0; i < 20; i++) {
     Settings.mqtt_fingerprint[1][i] = strtol(p, &p, 16);
@@ -854,13 +899,13 @@ void SettingsDefaultSet2(void)
   Settings.mqttlog_level = MQTT_LOG_LEVEL;
 
   // Energy
-  Settings.flag.no_power_on_check = ENERGY_VOLTAGE_ALWAYS;
-  Settings.flag2.current_resolution = 3;
-//  Settings.flag2.voltage_resolution = 0;
-//  Settings.flag2.wattage_resolution = 0;
-  Settings.flag2.energy_resolution = ENERGY_RESOLUTION;
-  Settings.flag3.dds2382_model = ENERGY_DDS2382_MODE;
-  Settings.flag3.hardware_energy_total = ENERGY_HARDWARE_TOTALS;
+  flag.no_power_on_check |= ENERGY_VOLTAGE_ALWAYS;
+  flag2.current_resolution |= 3;
+//  flag2.voltage_resolution |= 0;
+//  flag2.wattage_resolution |= 0;
+  flag2.energy_resolution |= ENERGY_RESOLUTION;
+  flag3.dds2382_model |= ENERGY_DDS2382_MODE;
+  flag3.hardware_energy_total |= ENERGY_HARDWARE_TOTALS;
   Settings.param[P_MAX_POWER_RETRY] = MAX_POWER_RETRY;
 //  Settings.energy_power_delta = 0;
   Settings.energy_power_calibration = HLW_PREF_PULSE;
@@ -890,12 +935,12 @@ void SettingsDefaultSet2(void)
   Settings.param[P_OVER_TEMP] = ENERGY_OVERTEMP;
 
   // IRRemote
-  Settings.flag.ir_receive_decimal = IR_DATA_RADIX;
-  Settings.flag3.receive_raw = IR_ADD_RAW_DATA;
+  flag.ir_receive_decimal |= IR_DATA_RADIX;
+  flag3.receive_raw |= IR_ADD_RAW_DATA;
   Settings.param[P_IR_UNKNOW_THRESHOLD] = IR_RCV_MIN_UNKNOWN_SIZE;
 
   // RF Bridge
-  Settings.flag.rf_receive_decimal = RF_DATA_RADIX;
+  flag.rf_receive_decimal |= RF_DATA_RADIX;
 //  for (uint32_t i = 0; i < 17; i++) { Settings.rf_code[i][0] = 0; }
   memcpy_P(Settings.rf_code[0], kDefaultRfCode, 9);
 
@@ -911,42 +956,43 @@ void SettingsDefaultSet2(void)
 //  }
 
   // Sensor
-  Settings.flag.temperature_conversion = TEMP_CONVERSION;
-  Settings.flag.pressure_conversion = PRESSURE_CONVERSION;
-  Settings.flag2.pressure_resolution = PRESSURE_RESOLUTION;
-  Settings.flag2.humidity_resolution = HUMIDITY_RESOLUTION;
-  Settings.flag2.temperature_resolution = TEMP_RESOLUTION;
-  Settings.flag3.ds18x20_internal_pullup = DS18X20_PULL_UP;
-  Settings.flag3.counter_reset_on_tele = COUNTER_RESET;
+  flag.temperature_conversion |= TEMP_CONVERSION;
+  flag.pressure_conversion |= PRESSURE_CONVERSION;
+  flag2.pressure_resolution |= PRESSURE_RESOLUTION;
+  flag2.humidity_resolution |= HUMIDITY_RESOLUTION;
+  flag2.temperature_resolution |= TEMP_RESOLUTION;
+  flag3.ds18x20_internal_pullup |= DS18X20_PULL_UP;
+  flag3.counter_reset_on_tele |= COUNTER_RESET;
 //  Settings.altitude = 0;
 
   // Rules
 //  Settings.rule_enabled = 0;
 //  Settings.rule_once = 0;
 //  for (uint32_t i = 1; i < MAX_RULE_SETS; i++) { Settings.rules[i][0] = '\0'; }
-  Settings.flag2.calc_resolution = CALC_RESOLUTION;
+  flag2.calc_resolution |= CALC_RESOLUTION;
 
   // Timer
-  Settings.flag3.timers_enable = TIMERS_ENABLED;
+  flag3.timers_enable |= TIMERS_ENABLED;
 
   // Home Assistant
-  Settings.flag.hass_light = HASS_AS_LIGHT;
-  Settings.flag.hass_discovery = HOME_ASSISTANT_DISCOVERY_ENABLE;
-  Settings.flag3.hass_tele_on_power = TELE_ON_POWER;
+  flag.hass_light |= HASS_AS_LIGHT;
+  flag.hass_discovery |= HOME_ASSISTANT_DISCOVERY_ENABLE;
+  flag3.hass_tele_on_power |= TELE_ON_POWER;
 
   // Knx
-  Settings.flag.knx_enabled = KNX_ENABLED;
-  Settings.flag.knx_enable_enhancement = KNX_ENHANCED;
+  flag.knx_enabled |= KNX_ENABLED;
+  flag.knx_enable_enhancement |= KNX_ENHANCED;
 
   // Light
-  Settings.flag.pwm_control = LIGHT_MODE;
-  Settings.flag.ws_clock_reverse = LIGHT_CLOCK_DIRECTION;
-  Settings.flag.light_signal = LIGHT_PAIRS_CO2;
-  Settings.flag.not_power_linked = LIGHT_POWER_CONTROL;
-  Settings.flag.decimal_text = LIGHT_COLOR_RADIX;
-  Settings.flag3.pwm_multi_channels = LIGHT_CHANNEL_MODE;
-  Settings.flag3.slider_dimmer_stay_on = LIGHT_SLIDER_POWER;
-  Settings.flag4.alexa_ct_range = LIGHT_ALEXA_CT_RANGE;
+  flag.pwm_control |= LIGHT_MODE;
+  flag.ws_clock_reverse |= LIGHT_CLOCK_DIRECTION;
+  flag.light_signal |= LIGHT_PAIRS_CO2;
+  flag.not_power_linked |= LIGHT_POWER_CONTROL;
+  flag.decimal_text |= LIGHT_COLOR_RADIX;
+  flag3.pwm_multi_channels |= LIGHT_CHANNEL_MODE;
+  flag3.slider_dimmer_stay_on |= LIGHT_SLIDER_POWER;
+  flag4.alexa_ct_range |= LIGHT_ALEXA_CT_RANGE;
+  flag4.pwm_ct_mode |= LIGHT_PWM_CT_MODE;
 
   Settings.pwm_frequency = PWM_FREQ;
   Settings.pwm_range = PWM_RANGE;
@@ -1007,9 +1053,9 @@ void SettingsDefaultSet2(void)
     Settings.timezone = APP_TIMEZONE / 60;
     Settings.timezone_minutes = abs(APP_TIMEZONE % 60);
   }
-  SettingsUpdateText(SET_NTPSERVER1, NTP_SERVER1);
-  SettingsUpdateText(SET_NTPSERVER2, NTP_SERVER2);
-  SettingsUpdateText(SET_NTPSERVER3, NTP_SERVER3);
+  SettingsUpdateText(SET_NTPSERVER1, PSTR(NTP_SERVER1));
+  SettingsUpdateText(SET_NTPSERVER2, PSTR(NTP_SERVER2));
+  SettingsUpdateText(SET_NTPSERVER3, PSTR(NTP_SERVER3));
   for (uint32_t i = 0; i < MAX_NTP_SERVERS; i++) {
     SettingsUpdateText(SET_NTPSERVER1 +i, ReplaceCommaWithDot(SettingsText(SET_NTPSERVER1 +i)));
   }
@@ -1033,13 +1079,22 @@ void SettingsDefaultSet2(void)
   SettingsEnableAllI2cDrivers();
 
   // Tuya
-  Settings.flag3.tuya_apply_o20 = TUYA_SETOPTION_20;
-  Settings.flag3.tuya_serial_mqtt_publish = MQTT_TUYA_RECEIVED;
+  flag3.tuya_apply_o20 |= TUYA_SETOPTION_20;
+  flag3.tuya_serial_mqtt_publish |= MQTT_TUYA_RECEIVED;
 
-  Settings.flag3.buzzer_enable = BUZZER_ENABLE;
-  Settings.flag3.shutter_mode = SHUTTER_SUPPORT;
-  Settings.flag3.pcf8574_ports_inverted = PCF8574_INVERT_PORTS;
-  Settings.flag4.zigbee_use_names = ZIGBEE_FRIENDLY_NAMES;
+  flag3.buzzer_enable |= BUZZER_ENABLE;
+  flag3.shutter_mode |= SHUTTER_SUPPORT;
+  flag3.pcf8574_ports_inverted |= PCF8574_INVERT_PORTS;
+  flag4.zigbee_use_names |= ZIGBEE_FRIENDLY_NAMES;
+
+#ifdef USER_TEMPLATE
+  JsonTemplate(USER_TEMPLATE);
+#endif
+
+  Settings.flag = flag;
+  Settings.flag2 = flag2;
+  Settings.flag3 = flag3;
+  Settings.flag4 = flag4;
 }
 
 /********************************************************************************************/
@@ -1098,7 +1153,7 @@ void SettingsDelta(void)
           Settings.switchmode[i] = SWITCH_MODE;
         }
       }
-      for (uint32_t i = 0; i < sizeof(Settings.my_gp); i++) {
+      for (uint32_t i = 0; i < ARRAY_SIZE(Settings.my_gp.io); i++) {
         if (Settings.my_gp.io[i] >= GPIO_SWT5) {  // Move up from GPIO_SWT5 to GPIO_KEY1
           Settings.my_gp.io[i] += 4;
         }
@@ -1140,8 +1195,11 @@ void SettingsDelta(void)
       Settings.param[P_MDNS_DELAYED_START] = 0;
     }
     if (Settings.version < 0x0604010B) {
-      Settings.interlock[0] = 0xFF;         // Legacy support using all relays in one interlock group
-      for (uint32_t i = 1; i < MAX_INTERLOCKS; i++) { Settings.interlock[i] = 0; }
+      Settings.flag.interlock = APP_INTERLOCK_MODE;
+      Settings.interlock[0] = APP_INTERLOCK_GROUP_1;
+      Settings.interlock[1] = APP_INTERLOCK_GROUP_2;
+      Settings.interlock[2] = APP_INTERLOCK_GROUP_3;
+      Settings.interlock[3] = APP_INTERLOCK_GROUP_4;
     }
     if (Settings.version < 0x0604010D) {
       Settings.param[P_BOOT_LOOP_OFFSET] = BOOT_LOOP_OFFSET;  // SetOption36
@@ -1377,6 +1435,7 @@ void SettingsDelta(void)
 #endif  // ESP8266
 
     if (Settings.version < 0x08020004) {
+      Settings.flag3.mqtt_buttons = 0;  // SetOption73 (0) - Decouple button from relay and send just mqtt topic
 #ifdef ESP8266
       Settings.config_version = 0;  // ESP8266 (Has been 0 for long time)
 #endif  // ESP8266
@@ -1384,8 +1443,39 @@ void SettingsDelta(void)
       Settings.config_version = 1;  // ESP32
 #endif  // ESP32
     }
+    if (Settings.version < 0x08020006) {
+#ifdef ESP32
+      Settings.module = WEMOS;
+      ModuleDefault(WEMOS);
+#endif  // ESP32
+      // make sure the empty rules have two consecutive NULLs, to be compatible with compressed rules
+      if (Settings.rules[0][0] == 0) { Settings.rules[0][1] = 0; }
+      if (Settings.rules[1][0] == 0) { Settings.rules[1][1] = 0; }
+      if (Settings.rules[2][0] == 0) { Settings.rules[2][1] = 0; }
+    }
+    if (Settings.version < 0x08030002) {
+      SettingsUpdateText(SET_DEVICENAME, SettingsText(SET_FRIENDLYNAME1));
+      Settings.ledpwm_off = 0;
+      Settings.ledpwm_on = 255;
+      Settings.ledpwm_mask = 0;
+    }
+    if (Settings.version < 0x08030104) {
+      Settings.flag4.network_wifi = 1;
+      Settings.flag4.network_ethernet = 1;
+    }
+#ifdef ESP32
+    if (Settings.version < 0x08030105) {
+      Settings.eth_type = ETH_TYPE;
+      Settings.eth_clk_mode = ETH_CLKMODE;
+      Settings.eth_address = ETH_ADDR;
+    }
+#endif
+    if (Settings.version < 0x08030106) {
+      Settings.fallback_module = FALLBACK_MODULE;
+    }
 
     Settings.version = VERSION;
     SettingsSave(1);
   }
+
 }

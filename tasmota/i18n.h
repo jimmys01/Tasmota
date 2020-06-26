@@ -65,6 +65,7 @@
 #define D_JSON_ERROR "Error"
 #define D_JSON_EVENT "Event"
 #define D_JSON_EVERY "Every"
+#define D_JSON_EXPORT "Export"
 #define D_JSON_EXPORT_ACTIVE "ExportActive"
 #define D_JSON_EXPORT_REACTIVE "ExportReactive"
 #define D_JSON_FAILED "Failed"
@@ -123,6 +124,8 @@
 #define D_JSON_PROBETEMPERATURE "ProbeTemperature"
 #define D_JSON_PROGRAMFLASHSIZE "ProgramFlashSize"
 #define D_JSON_PROGRAMSIZE "ProgramSize"
+#define D_JSON_PSRMAXMEMORY "PsrMax"
+#define D_JSON_PSRFREEMEMORY "PsrFree"
 #define D_JSON_REFERENCETEMPERATURE "ReferenceTemperature"
 #define D_JSON_REMAINING "Remaining"
 #define D_JSON_RESET "Reset"
@@ -144,6 +147,7 @@
 #define D_JSON_SPEED "Speed"
 #define D_JSON_SPEED_UNIT "SpeedUnit"
 #define D_JSON_SSID "SSId"
+#define D_JSON_STAGE "Stage"
 #define D_JSON_STARTDST "StartDST"       // Start Daylight Savings Time
 #define D_JSON_STARTED "Started"
 #define D_JSON_STARTUPUTC "StartupUTC"
@@ -267,6 +271,8 @@
 #define D_CMND_SSID "SSId"
 #define D_CMND_PASSWORD "Password"
 #define D_CMND_HOSTNAME "Hostname"
+#define D_CMND_WIFI "Wifi"
+#define D_CMND_ETHERNET "Ethernet"
 #define D_CMND_WIFICONFIG "WifiConfig"
   #define D_WCFG_0_RESTART "Restart"
   #define D_WCFG_2_WIFIMANAGER "WifiManager"
@@ -274,6 +280,7 @@
   #define D_WCFG_5_WAIT "Wait"
   #define D_WCFG_6_SERIAL "Serial"
   #define D_WCFG_7_WIFIMANAGER_RESET_ONLY "ManagerRst"
+#define D_CMND_DEVICENAME "DeviceName"
 #define D_CMND_FRIENDLYNAME "FriendlyName"
 #define D_CMND_SWITCHMODE "SwitchMode"
 #define D_CMND_INTERLOCK "Interlock"
@@ -291,6 +298,9 @@
 #define D_CMND_LEDPOWER "LedPower"
 #define D_CMND_LEDSTATE "LedState"
 #define D_CMND_LEDMASK "LedMask"
+#define D_CMND_LEDPWM_OFF "LedPwmOff"
+#define D_CMND_LEDPWM_ON "LedPwmOn"
+#define D_CMND_LEDPWM_MODE "LedPwmMode"
 #define D_CMND_WIFIPOWER "WifiPower"
 #define D_CMND_SPEEDUNIT "SpeedUnit"
 #define D_CMND_I2CSCAN "I2CScan"
@@ -312,6 +322,13 @@
 #define D_CMND_HUMOFFSET "HumOffset"
 #define D_CMND_GLOBAL_TEMP "GlobalTemp"
 #define D_CMND_GLOBAL_HUM "GlobalHum"
+
+#ifdef ESP32
+#define D_CMND_TOUCH_CAL "TouchCal"
+#define D_CMND_TOUCH_THRES "TouchThres"
+#define D_CMND_TOUCH_NUM "TouchNum"
+#define D_CMND_CPU_FREQUENCY "CpuFrequency"
+#endif //ESP32
 
 // Commands xdrv_01_mqtt.ino
 #define D_CMND_MQTTLOG "MqttLog"
@@ -398,6 +415,7 @@
 #define D_CMND_RGBWWTABLE "RGBWWTable"
 #define D_CMND_ROTATION "Rotation"
 #define D_CMND_SCHEME "Scheme"
+#define D_CMND_SEQUENCE_OFFSET "SequenceOffset"
 #define D_CMND_SPEED "Speed"
 #define D_CMND_WAKEUP "Wakeup"
 #define D_CMND_WAKEUPDURATION "WakeUpDuration"
@@ -483,16 +501,23 @@
 
 // Commands xdrv_23_zigbee.ino
 #define D_PRFX_ZB "Zb"
-#define D_ZIGBEE_NOT_STARTED "Zigbee not started (yet)"
+#define D_ZIGBEE_NOT_STARTED "Zigbee not started"
 #define D_CMND_ZIGBEE_PERMITJOIN "PermitJoin"
 #define D_CMND_ZIGBEE_STATUS "Status"
 #define D_CMND_ZIGBEE_RESET "Reset"
   #define D_JSON_ZIGBEE_CC2530 "CC2530"
 #define D_CMND_ZIGBEEZNPRECEIVE "ZNPReceive"      // only for debug
+#define D_CMND_ZIGBEE_EZSP_RECEIVE "EZSPReceive"      // only for debug
+#define D_CMND_ZIGBEE_EZSP_RECEIVE_RAW "EZSPReceiveRaw"      // only for debug
 #define D_CMND_ZIGBEEZNPSEND "ZNPSend"
+#define D_CMND_ZIGBEE_EZSP_SEND "EZSPSend"
+#define D_CMND_ZIGBEE_EZSP_SEND_RAW "EZSPSendRaw"
   #define D_JSON_ZIGBEE_STATE "ZbState"
   #define D_JSON_ZIGBEEZNPRECEIVED "ZbZNPReceived"
+  #define D_JSON_ZIGBEE_EZSP_RECEIVED "ZbEZSPReceived"
   #define D_JSON_ZIGBEEZNPSENT "ZbZNPSent"
+  #define D_JSON_ZIGBEE_EZSP_SENT "ZbEZSPSent"
+  #define D_JSON_ZIGBEE_EZSP_SENT_RAW "ZbEZSPSentRaw"
   #define D_JSON_ZIGBEEZCL_RECEIVED "ZbZCLReceived"
   #define D_JSON_ZIGBEEZCL_RAW_RECEIVED "ZbZCLRawReceived"
   #define D_JSON_ZIGBEE_DEVICE "Device"
@@ -505,10 +530,16 @@
 #define D_CMND_ZIGBEE_FORGET "Forget"
 #define D_CMND_ZIGBEE_SAVE "Save"
   #define D_CMND_ZIGBEE_LINKQUALITY "LinkQuality"
+  #define D_CMND_ZIGBEE_CLUSTER "Cluster"
   #define D_CMND_ZIGBEE_ENDPOINT "Endpoint"
   #define D_CMND_ZIGBEE_GROUP "Group"
+  #define D_CMND_ZIGBEE_MANUF "Manuf"
+  #define D_CMND_ZIGBEE_DEVICE "Device"
 #define D_CMND_ZIGBEE_READ "Read"
 #define D_CMND_ZIGBEE_SEND "Send"
+#define D_CMND_ZIGBEE_WRITE "Write"
+#define D_CMND_ZIGBEE_REPORT "Report"
+#define D_CMND_ZIGBEE_RESPONSE "Response"
   #define D_JSON_ZIGBEE_ZCL_SENT "ZbZCLSent"
 #define D_JSON_ZIGBEE_RECEIVED "ZbReceived"
 #define D_CMND_ZIGBEE_BIND "Bind"
@@ -557,6 +588,7 @@
 #define D_CMND_SHUTTER_RELAY "Relay"
 #define D_CMND_SHUTTER_SETHALFWAY "SetHalfway"
 #define D_CMND_SHUTTER_SETCLOSE "SetClose"
+#define D_CMND_SHUTTER_SETOPEN "SetOpen"
 #define D_CMND_SHUTTER_INVERT "Invert"
 #define D_CMND_SHUTTER_CLIBRATION "Calibration"
 #define D_CMND_SHUTTER_MOTORDELAY "MotorDelay"
@@ -580,6 +612,16 @@
 
 // Commands xsns_02_analog.ino
 #define D_CMND_ADCPARAM "AdcParam"
+
+// xsns_70_veml6075.ino
+#define D_JSON_UVA_INTENSITY "UvaIntensity"
+#define D_JSON_UVB_INTENSITY  "UvbItensity"
+#define D_CMND_VEML6075_POWER "power"
+#define D_CMND_VEML6075_DYNAMIC "dynamic"
+#define D_CMND_VEML6075_INTTIME "inttime"
+
+// xsns_71_veml7700.ino
+#define D_JSON_WHITE_CONTENT "WhiteContent"
 
 /********************************************************************************************/
 
@@ -610,13 +652,14 @@
 #define D_LOG_UPNP "UPP: "         // UPnP
 #define D_LOG_WIFI "WIF: "         // Wifi
 #define D_LOG_ZIGBEE "ZIG: "       // Zigbee
+#define D_LOG_TCP "TCP: "          // TCP bridge
 
 /********************************************************************************************/
 
 #define D_ASTERISK_PWD "****"
 
 #ifndef MY_LANGUAGE
-  #include "language/en-GB.h"
+  #include "language/en_GB.h"
 #else
   #define QUOTEME(x) QUOTEME_1(x)
   #define QUOTEME_1(x) #x
@@ -624,7 +667,7 @@
   #include INCLUDE_FILE(MY_LANGUAGE)
 #endif
 #ifndef LANGUAGE_LCID
-  #define LANGUAGE_LCID 2057  // en-GB
+  #define LANGUAGE_LCID 2057  // en_GB
 #endif
 
 // Common
@@ -688,40 +731,39 @@ const float kSpeedConversionFactor[] = {1,            // none
 // xdrv_02_webserver.ino
 #ifdef USE_WEBSERVER
 // {s} = <tr><th>, {m} = </th><td>, {e} = </td></tr>
-const char HTTP_SNS_TEMP[] PROGMEM = "{s}%s " D_TEMPERATURE "{m}%s&deg;%c{e}";
-const char HTTP_SNS_HUM[] PROGMEM = "{s}%s " D_HUMIDITY "{m}%s%%{e}";
-const char HTTP_SNS_DEW[] PROGMEM = "{s}%s " D_DEWPOINT "{m}%s&deg;%c{e}";
-const char HTTP_SNS_PRESSURE[] PROGMEM = "{s}%s " D_PRESSURE "{m}%s %s{e}";
-const char HTTP_SNS_SEAPRESSURE[] PROGMEM = "{s}%s " D_PRESSUREATSEALEVEL "{m}%s %s{e}";
-const char HTTP_SNS_ANALOG[] PROGMEM = "{s}%s " D_ANALOG_INPUT "%d{m}%d{e}";
-const char HTTP_SNS_ILLUMINANCE[] PROGMEM = "{s}%s " D_ILLUMINANCE "{m}%d " D_UNIT_LUX "{e}";
-const char HTTP_SNS_CO2[] PROGMEM = "{s}%s " D_CO2 "{m}%d " D_UNIT_PARTS_PER_MILLION "{e}";
-const char HTTP_SNS_CO2EAVG[] PROGMEM = "{s}%s " D_ECO2 "{m}%d " D_UNIT_PARTS_PER_MILLION "{e}";
-const char HTTP_SNS_GALLONS[] PROGMEM = "{s}%s " D_TOTAL_USAGE "{m}%s " D_UNIT_GALLONS " {e}";
-const char HTTP_SNS_GPM[] PROGMEM = "{s}%s " D_FLOW_RATE "{m}%s " D_UNIT_GALLONS_PER_MIN" {e}";
-const char HTTP_SNS_MOISTURE[] PROGMEM = "{s}%s " D_MOISTURE "{m}%d %%{e}";
-const char HTTP_SNS_RANGE[] PROGMEM = "{s}%s " D_RANGE "{m}%d{e}";
+const char HTTP_SNS_TEMP[]          PROGMEM = "{s}%s "  D_TEMPERATURE         "{m}%s " D_UNIT_DEGREE            "%c{e}";
+const char HTTP_SNS_HUM[]           PROGMEM = "{s}%s "  D_HUMIDITY            "{m}%s " D_UNIT_PERCENT             "{e}";
+const char HTTP_SNS_DEW[]           PROGMEM = "{s}%s "  D_DEWPOINT            "{m}%s " D_UNIT_DEGREE            "%c{e}";
+const char HTTP_SNS_PRESSURE[]      PROGMEM = "{s}%s "  D_PRESSURE            "{m}%s "                          "%s{e}";
+const char HTTP_SNS_SEAPRESSURE[]   PROGMEM = "{s}%s "  D_PRESSUREATSEALEVEL  "{m}%s "                          "%s{e}";
+const char HTTP_SNS_ANALOG[]        PROGMEM = "{s}%s "  D_ANALOG_INPUT      "%d{m}%d"                             "{e}";
+const char HTTP_SNS_ILLUMINANCE[]   PROGMEM = "{s}%s "  D_ILLUMINANCE         "{m}%d " D_UNIT_LUX                 "{e}";
+const char HTTP_SNS_CO2[]           PROGMEM = "{s}%s "  D_CO2                 "{m}%d " D_UNIT_PARTS_PER_MILLION   "{e}";
+const char HTTP_SNS_CO2EAVG[]       PROGMEM = "{s}%s "  D_ECO2                "{m}%d " D_UNIT_PARTS_PER_MILLION   "{e}";
+const char HTTP_SNS_GALLONS[]       PROGMEM = "{s}%s "  D_TOTAL_USAGE         "{m}%s " D_UNIT_GALLONS             "{e}";
+const char HTTP_SNS_GPM[]           PROGMEM = "{s}%s "  D_FLOW_RATE           "{m}%s " D_UNIT_GALLONS_PER_MIN     "{e}";
+const char HTTP_SNS_MOISTURE[]      PROGMEM = "{s}%s "  D_MOISTURE            "{m}%d " D_UNIT_PERCENT             "{e}";
+const char HTTP_SNS_RANGE[]         PROGMEM = "{s}%s "  D_RANGE               "{m}%d"                             "{e}";
+const char HTTP_SNS_VOLTAGE[]       PROGMEM = "{s}"     D_VOLTAGE             "{m}%s " D_UNIT_VOLT                "{e}";
+const char HTTP_SNS_CURRENT[]       PROGMEM = "{s}"     D_CURRENT             "{m}%s " D_UNIT_AMPERE              "{e}";
+const char HTTP_SNS_POWER[]         PROGMEM = "{s}"     D_POWERUSAGE          "{m}%s " D_UNIT_WATT                "{e}";
+const char HTTP_SNS_ENERGY_TOTAL[]  PROGMEM = "{s}"     D_ENERGY_TOTAL        "{m}%s " D_UNIT_KILOWATTHOUR        "{e}";
 
-const char HTTP_SNS_VOLTAGE[] PROGMEM = "{s}" D_VOLTAGE "{m}%s " D_UNIT_VOLT "{e}";
-const char HTTP_SNS_CURRENT[] PROGMEM = "{s}" D_CURRENT "{m}%s " D_UNIT_AMPERE "{e}";
-const char HTTP_SNS_POWER[] PROGMEM = "{s}" D_POWERUSAGE "{m}%s " D_UNIT_WATT "{e}";
-const char HTTP_SNS_ENERGY_TOTAL[] PROGMEM = "{s}" D_ENERGY_TOTAL "{m}%s " D_UNIT_KILOWATTHOUR "{e}";
-
-const char S_MAIN_MENU[] PROGMEM = D_MAIN_MENU;
-const char S_CONFIGURATION[] PROGMEM = D_CONFIGURATION;
-const char S_CONFIGURE_TEMPLATE[] PROGMEM = D_CONFIGURE_TEMPLATE;
-const char S_CONFIGURE_MODULE[] PROGMEM = D_CONFIGURE_MODULE;
-const char S_CONFIGURE_WIFI[] PROGMEM = D_CONFIGURE_WIFI;
-const char S_NO_NETWORKS_FOUND[] PROGMEM = D_NO_NETWORKS_FOUND;
-const char S_CONFIGURE_LOGGING[] PROGMEM = D_CONFIGURE_LOGGING;
-const char S_CONFIGURE_OTHER[] PROGMEM = D_CONFIGURE_OTHER;
-const char S_SAVE_CONFIGURATION[] PROGMEM = D_SAVE_CONFIGURATION;
-const char S_RESET_CONFIGURATION[] PROGMEM = D_RESET_CONFIGURATION;
-const char S_RESTORE_CONFIGURATION[] PROGMEM = D_RESTORE_CONFIGURATION;
-const char S_FIRMWARE_UPGRADE[] PROGMEM = D_FIRMWARE_UPGRADE;
-const char S_CONSOLE[] PROGMEM = D_CONSOLE;
-const char S_INFORMATION[] PROGMEM = D_INFORMATION;
-const char S_RESTART[] PROGMEM = D_RESTART;
+const char S_MAIN_MENU[]              PROGMEM = D_MAIN_MENU;
+const char S_CONFIGURATION[]          PROGMEM = D_CONFIGURATION;
+const char S_CONFIGURE_TEMPLATE[]     PROGMEM = D_CONFIGURE_TEMPLATE;
+const char S_CONFIGURE_MODULE[]       PROGMEM = D_CONFIGURE_MODULE;
+const char S_CONFIGURE_WIFI[]         PROGMEM = D_CONFIGURE_WIFI;
+const char S_NO_NETWORKS_FOUND[]      PROGMEM = D_NO_NETWORKS_FOUND;
+const char S_CONFIGURE_LOGGING[]      PROGMEM = D_CONFIGURE_LOGGING;
+const char S_CONFIGURE_OTHER[]        PROGMEM = D_CONFIGURE_OTHER;
+const char S_SAVE_CONFIGURATION[]     PROGMEM = D_SAVE_CONFIGURATION;
+const char S_RESET_CONFIGURATION[]    PROGMEM = D_RESET_CONFIGURATION;
+const char S_RESTORE_CONFIGURATION[]  PROGMEM = D_RESTORE_CONFIGURATION;
+const char S_FIRMWARE_UPGRADE[]       PROGMEM = D_FIRMWARE_UPGRADE;
+const char S_CONSOLE[]                PROGMEM = D_CONSOLE;
+const char S_INFORMATION[]            PROGMEM = D_INFORMATION;
+const char S_RESTART[]                PROGMEM = D_RESTART;
 #endif  // USE_WEBSERVER
 
 const uint32_t MARKER_START = 0x5AA55AA5;

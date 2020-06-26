@@ -403,7 +403,7 @@ uint32_t MIBLEgetSensorSlot(uint8_t (&_serial)[6], uint16_t _type){
 void HM10SerialInit(void) {
   HM10.mode.init = false;
   HM10.serialSpeed = HM10_BAUDRATE;
-  HM10Serial = new TasmotaSerial(pin[GPIO_HM10_RX], pin[GPIO_HM10_TX], 1, 0, HM10_MAX_RX_BUF);
+  HM10Serial = new TasmotaSerial(Pin(GPIO_HM10_RX), Pin(GPIO_HM10_TX), 1, 0, HM10_MAX_RX_BUF);
   if (HM10Serial->begin(HM10.serialSpeed)) {
     AddLog_P2(LOG_LEVEL_DEBUG, PSTR("%s start serial communication fixed to 115200 baud"),D_CMND_HM10);
     if (HM10Serial->hardwareSerial()) {
@@ -977,11 +977,15 @@ void HM10_TaskEvery100ms(){
   }
 }
 
-void HM10StatusInfo(){
+void HM10StatusInfo() {
+/*
   char stemp[20];
   snprintf_P(stemp, sizeof(stemp),PSTR("{%s:{\"found\": %u}}"),D_CMND_HM10, MIBLEsensors.size());
   AddLog_P2(LOG_LEVEL_INFO, stemp);
   RulesProcessEvent(stemp);
+*/
+  Response_P(PSTR("{%s:{\"found\":%u}}"), D_CMND_HM10, MIBLEsensors.size());
+  XdrvRulesProcess();
 }
 
 /**
@@ -1257,7 +1261,7 @@ bool Xsns62(uint8_t function)
 {
   bool result = false;
 
-  if ((pin[GPIO_HM10_RX] < 99) && (pin[GPIO_HM10_TX] < 99)) {
+  if (PinUsed(GPIO_HM10_RX) && PinUsed(GPIO_HM10_TX)) {
     switch (function) {
       case FUNC_INIT:
         HM10SerialInit();                                  // init and start communication
