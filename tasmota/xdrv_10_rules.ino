@@ -165,8 +165,8 @@ struct RULES {
   long old_dimm = -1;
 
   uint16_t last_minute = 60;
-  uint16_t vars_event = 0;
-  uint8_t mems_event = 0;
+  uint16_t vars_event = 0;   // Bitmask supporting MAX_RULE_VARS bits
+  uint16_t mems_event = 0;   // Bitmask supporting MAX_RULE_MEMS bits
   bool teleperiod = false;
   bool busy = false;
 
@@ -294,6 +294,7 @@ String GetRule(uint32_t idx) {
     return rule;
 #endif
   }
+  return "";  // Fix GCC10 warning
 }
 
 #ifdef USE_UNISHOX_COMPRESSION
@@ -496,25 +497,31 @@ bool RulesRuleMatch(uint8_t rule_set, String &event, String &rule)
     rule_name = rule_name.substring(0, pos);           // "SUBTYPE1#CURRENT"
   }
 
-  StaticJsonBuffer<1024> jsonBuf;
+//  StaticJsonBuffer<1280> jsonBuf;                      // Was 1024 until 20200811
+  DynamicJsonBuffer jsonBuf;                           // Was static until 20200812
   JsonObject &root = jsonBuf.parseObject(event);
-  if (!root.success()) { return false; }               // No valid JSON data
+  if (!root.success()) {
+    AddLog_P2(LOG_LEVEL_DEBUG, PSTR("RUL: Event too long (%d)"), event.length());
+    return false;
+  }               // No valid JSON data
   JsonObject *obj = &root;
   String subtype;
   uint32_t i = 0;
   while ((pos = rule_name.indexOf("#")) > 0) {         // "SUBTYPE1#SUBTYPE2#CURRENT"
     subtype = rule_name.substring(0, pos);
     const JsonVariant & val = GetCaseInsensitive(*obj, subtype.c_str());
-    if (nullptr == &val) { return false; }            // not found
+    if (nullptr == &val) { return false; }             // not found
     obj = &(val.as<JsonObject>());
-    if (!obj->success()) { return false; }            // not a JsonObject
+    if (!obj->success()) { return false; }             // not a JsonObject
 
     rule_name = rule_name.substring(pos +1);
     if (i++ > 10) { return false; }                    // Abandon possible loop
+
+    yield();
   }
 
   const JsonVariant & val = GetCaseInsensitive(*obj, rule_name.c_str());
-  if (nullptr == &val) { return false; }              // last level not found
+  if (nullptr == &val) { return false; }               // last level not found
   const char* str_value;
   if (rule_name_idx) {
     str_value = (*obj)[rule_name][rule_name_idx -1];   // "CURRENT[1]"
@@ -749,37 +756,37 @@ bool RuleSetProcess(uint8_t rule_set, String &event_saved)
 
 bool RulesProcessEvent(char *json_event)
 {
+  if (Rules.busy) { return false; }
+
+  Rules.busy = true;
   bool serviced = false;
 
-  if (!Rules.busy) {
-    Rules.busy = true;
-
 #ifdef USE_DEBUG_DRIVER
-    ShowFreeMem(PSTR("RulesProcessEvent"));
+  ShowFreeMem(PSTR("RulesProcessEvent"));
 #endif
 
-    String event_saved = json_event;
-    // json_event = {"INA219":{"Voltage":4.494,"Current":0.020,"Power":0.089}}
-    // json_event = {"System":{"Boot":1}}
-    // json_event = {"SerialReceived":"on"} - invalid but will be expanded to {"SerialReceived":{"Data":"on"}}
-    char *p = strchr(json_event, ':');
-    if ((p != NULL) && !(strchr(++p, ':'))) {  // Find second colon
-      event_saved.replace(F(":"), F(":{\"Data\":"));
-      event_saved += F("}");
-      // event_saved = {"SerialReceived":{"Data":"on"}}
-    }
-    event_saved.toUpperCase();
+  String event_saved = json_event;
+  // json_event = {"INA219":{"Voltage":4.494,"Current":0.020,"Power":0.089}}
+  // json_event = {"System":{"Boot":1}}
+  // json_event = {"SerialReceived":"on"} - invalid but will be expanded to {"SerialReceived":{"Data":"on"}}
+  char *p = strchr(json_event, ':');
+  if ((p != NULL) && !(strchr(++p, ':'))) {  // Find second colon
+    event_saved.replace(F(":"), F(":{\"Data\":"));
+    event_saved += F("}");
+    // event_saved = {"SerialReceived":{"Data":"on"}}
+  }
+  event_saved.toUpperCase();
 
 //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("RUL: Event %s"), event_saved.c_str());
 
-    for (uint32_t i = 0; i < MAX_RULE_SETS; i++) {
-      if (GetRuleLen(i) && bitRead(Settings.rule_enabled, i)) {
-        if (RuleSetProcess(i, event_saved)) { serviced = true; }
-      }
+  for (uint32_t i = 0; i < MAX_RULE_SETS; i++) {
+    if (GetRuleLen(i) && bitRead(Settings.rule_enabled, i)) {
+      if (RuleSetProcess(i, event_saved)) { serviced = true; }
     }
-
-    Rules.busy = false;
   }
+
+  Rules.busy = false;
+
   return serviced;
 }
 
@@ -790,6 +797,11 @@ bool RulesProcess(void)
 
 void RulesInit(void)
 {
+  // indicates scripter not enabled
+  bitWrite(Settings.rule_once, 7, 0);
+  // and indicates scripter do not use compress
+  bitWrite(Settings.rule_once, 6, 0);
+
   rules_flag.data = 0;
   for (uint32_t i = 0; i < MAX_RULE_SETS; i++) {
     if (0 == GetRuleLen(i)) {

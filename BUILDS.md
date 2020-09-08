@@ -29,7 +29,7 @@
 | USE_HOTPLUG           | - | - | - | - | - | - | - |
 |                       |   |   |   |   |   |   |   |
 | Feature or Sensor     | minimal | lite | tasmota | knx | sensors | ir | display | Remarks
-| ROTARY_V1             | - | - | - | - | - | - | - |
+| ROTARY_V1             | - | - | x | - | x | - | - |
 | USE_SONOFF_RF         | - | - | x | x | x | - | - |
 | USE_RF_FLASH          | - | - | x | x | x | - | - |
 | USE_SONOFF_SC         | - | - | x | x | x | - | - |
@@ -148,6 +148,8 @@
 | USE_NRF24             | - | - | - | - | - | - | - |
 | USE_MIBLE             | - | - | - | - | - | - | - |
 | USE_ZIGBEE            | - | - | - | - | - | - | - |
+| USE_ZIGBEE_ZNP        | - | - | - | - | - | - | - |
+| USE_ZIGBEE_EZSP       | - | - | - | - | - | - | - | Sonoff ZbBridge
 |                       |   |   |   |   |   |   |   |
 | USE_IR_REMOTE         | - | - | x | x | x | x | x |
 | USE_IR_RECEIVE        | - | - | x | x | x | x | x |

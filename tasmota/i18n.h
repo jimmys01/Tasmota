@@ -81,6 +81,7 @@
 #define D_JSON_GAS "Gas"
 #define D_JSON_GATEWAY "Gateway"
 #define D_JSON_GROUPS "Groups"
+#define D_JSON_HALTING "Halting"
 #define D_JSON_HEAPSIZE "Heap"
 #define D_JSON_HIGH "High"
 #define D_JSON_HOST_NOT_FOUND "Host not found"
@@ -286,7 +287,7 @@
 #define D_CMND_INTERLOCK "Interlock"
 #define D_CMND_TELEPERIOD "TelePeriod"
 #define D_CMND_RESTART "Restart"
-  #define D_JSON_ONE_TO_RESTART "1 to restart"
+  #define D_JSON_ONE_TO_RESTART "1 to restart, 2 to halt"
 #define D_CMND_RESET "Reset"
   #define D_JSON_RESET_AND_RESTARTING "Reset and Restarting"
   #define D_JSON_ONE_TO_RESET "1 to reset"
@@ -481,7 +482,7 @@
 
 // Commands xdrv_09_timers.ino
 #define D_CMND_TIMER "Timer"
-  #define D_JSON_TIMER_ARM "Arm"
+  #define D_JSON_TIMER_ARM "Enable"
   #define D_JSON_TIMER_MODE "Mode"
   #define D_JSON_TIMER_TIME "Time"
   #define D_JSON_TIMER_WINDOW "Window"
@@ -509,10 +510,12 @@
 #define D_CMND_ZIGBEEZNPRECEIVE "ZNPReceive"      // only for debug
 #define D_CMND_ZIGBEE_EZSP_RECEIVE "EZSPReceive"      // only for debug
 #define D_CMND_ZIGBEE_EZSP_RECEIVE_RAW "EZSPReceiveRaw"      // only for debug
+#define D_CMND_ZIGBEE_EZSP_LISTEN "Listen"      // only for EZSP
 #define D_CMND_ZIGBEEZNPSEND "ZNPSend"
 #define D_CMND_ZIGBEE_EZSP_SEND "EZSPSend"
 #define D_CMND_ZIGBEE_EZSP_SEND_RAW "EZSPSendRaw"
   #define D_JSON_ZIGBEE_STATE "ZbState"
+  #define D_JSON_ZIGBEE_ROUTE_ERROR "ZbRouteError"
   #define D_JSON_ZIGBEEZNPRECEIVED "ZbZNPReceived"
   #define D_JSON_ZIGBEE_EZSP_RECEIVED "ZbEZSPReceived"
   #define D_JSON_ZIGBEEZNPSENT "ZbZNPSent"
@@ -539,6 +542,8 @@
 #define D_CMND_ZIGBEE_SEND "Send"
 #define D_CMND_ZIGBEE_WRITE "Write"
 #define D_CMND_ZIGBEE_REPORT "Report"
+#define D_CMND_ZIGBEE_READ_CONFIG "ReadConfig"
+#define D_CMND_ZIGBEE_CONFIG "Config"
 #define D_CMND_ZIGBEE_RESPONSE "Response"
   #define D_JSON_ZIGBEE_ZCL_SENT "ZbZCLSent"
 #define D_JSON_ZIGBEE_RECEIVED "ZbReceived"
@@ -548,6 +553,7 @@
   #define D_JSON_ZIGBEE_UNBIND "ZbUnbind"
 #define D_CMND_ZIGBEE_BIND_STATE "BindState"
   #define D_JSON_ZIGBEE_BIND_STATE "ZbBindState"
+#define D_JSON_ZIGBEE_PARENT "ZbParent"
 #define D_CMND_ZIGBEE_PING "Ping"
   #define D_JSON_ZIGBEE_PING "ZbPing"
   #define D_JSON_ZIGBEE_IEEE "IEEEAddr"
@@ -575,11 +581,13 @@
 #define D_CMND_SHUTTER_OPEN "Open"
 #define D_CMND_SHUTTER_CLOSE "Close"
 #define D_CMND_SHUTTER_TOGGLE "Toggle"
+#define D_CMND_SHUTTER_TOGGLEDIR "ToggleDir"
 #define D_CMND_SHUTTER_UP "Up"
 #define D_CMND_SHUTTER_DOWN "Down"
 #define D_CMND_SHUTTER_STOPOPEN "StopOpen"
 #define D_CMND_SHUTTER_STOPCLOSE "StopClose"
 #define D_CMND_SHUTTER_STOPTOGGLE "StopToggle"
+#define D_CMND_SHUTTER_STOPTOGGLEDIR "StopToggleDir"
 #define D_CMND_SHUTTER_STOPPOSITION "StopPosition"
 #define D_CMND_SHUTTER_STOP "Stop"
 #define D_CMND_SHUTTER_POSITION "Position"
@@ -615,7 +623,7 @@
 
 // xsns_70_veml6075.ino
 #define D_JSON_UVA_INTENSITY "UvaIntensity"
-#define D_JSON_UVB_INTENSITY  "UvbItensity"
+#define D_JSON_UVB_INTENSITY  "UvbIntensity"
 #define D_CMND_VEML6075_POWER "power"
 #define D_CMND_VEML6075_DYNAMIC "dynamic"
 #define D_CMND_VEML6075_INTTIME "inttime"

@@ -56,6 +56,7 @@
 #define D_AP "AP"                    // Access Point
 #define D_AS "名称:"
 #define D_AUTO "自动"
+#define D_BATT "Batt"                // Short for Battery
 #define D_BLINK "闪烁"
 #define D_BLINKOFF "闪烁关"
 #define D_BOOT_COUNT "启动次数"
@@ -116,6 +117,7 @@
 #define D_IP_ADDRESS "IP地址"
 #define D_LIGHT "灯"
 #define D_LWT "LWT"
+#define D_LQI "LQI"                  // Zigbee Link Quality Index
 #define D_MODULE "模块"
 #define D_MOISTURE "Moisture"
 #define D_MQTT "MQTT"
@@ -305,6 +307,7 @@
 #define D_DEVICE_NAME "Device Name"
 #define D_WEB_ADMIN_PASSWORD "WEB 管理密码"
 #define D_MQTT_ENABLE "启用MQTT"
+#define D_MQTT_TLS_ENABLE "MQTT TLS"
 #define D_FRIENDLY_NAME "昵称"
 #define D_BELKIN_WEMO "贝尔金 WeMo"
 #define D_HUE_BRIDGE "飞利浦 Hue 网桥"
@@ -333,6 +336,7 @@
 #define D_MQTT_TOPIC "MQTT 主题"
 #define D_MQTT_GROUP_TOPIC "MQTT 主题组"
 #define D_MQTT_FULL_TOPIC "MQTT 完整主题"
+#define D_MQTT_NO_RETAIN "MQTT No Retain"
 #define D_MDNS_DISCOVERY "mDNS 发现"
 #define D_MDNS_ADVERTISE "mDNS 广播"
 #define D_ESP_CHIP_ID "ESP 芯片 ID"
@@ -347,6 +351,7 @@
 #define D_UPLOAD_STARTED "开始上传"
 #define D_UPGRADE_STARTED "开始升级"
 #define D_UPLOAD_DONE "上传完成"
+#define D_TRANSFER_STARTED "Transfer started"
 #define D_UPLOAD_ERR_1 "没有选择任何文件"
 #define D_UPLOAD_ERR_2 "没有足够空间"
 #define D_UPLOAD_ERR_3 "固件头不是 0xE9"
@@ -645,6 +650,7 @@
 #define D_SENSOR_OLED_RESET    "OLED Reset"
 #define D_SENSOR_ZIGBEE_TXD    "Zigbee Tx"
 #define D_SENSOR_ZIGBEE_RXD    "Zigbee Rx"
+#define D_SENSOR_ZIGBEE_RST    "Zigbee Rst"
 #define D_SENSOR_SOLAXX1_TX    "SolaxX1 Tx"
 #define D_SENSOR_SOLAXX1_RX    "SolaxX1 Rx"
 #define D_SENSOR_IBEACON_TX    "iBeacon TX"
@@ -684,6 +690,13 @@
 #define D_SENSOR_TELEINFO_RX   "TInfo Rx"
 #define D_SENSOR_TELEINFO_ENABLE "TInfo EN"
 #define D_SENSOR_LMT01_PULSE   "LMT01 Pulse"
+#define D_SENSOR_ADC_INPUT     "ADC Input"
+#define D_SENSOR_ADC_TEMP      "ADC Temp"
+#define D_SENSOR_ADC_LIGHT     "ADC Light"
+#define D_SENSOR_ADC_BUTTON    "ADC Button"
+#define D_SENSOR_ADC_RANGE     "ADC Range"
+#define D_SENSOR_ADC_CT_POWER  "ADC CT Power"
+#define D_SENSOR_ADC_JOYSTICK  "ADC Joystick"
 #define D_GPIO_WEBCAM_PWDN     "CAM_PWDN"
 #define D_GPIO_WEBCAM_RESET    "CAM_RESET"
 #define D_GPIO_WEBCAM_XCLK     "CAM_XCLK"
@@ -701,6 +714,8 @@
 #define D_SENSOR_ETH_PHY_MDIO  "ETH MDIO"
 #define D_SENSOR_TCP_TXD       "TCP Tx"
 #define D_SENSOR_TCP_RXD       "TCP Rx"
+#define D_SENSOR_IEM3000_TX    "iEM3000 TX"
+#define D_SENSOR_IEM3000_RX    "iEM3000 RX"
 
 // Units
 #define D_UNIT_AMPERE "安"
@@ -816,5 +831,14 @@
 //xsns_68_opentherm.ino
 #define D_SENSOR_BOILER_OT_RX   "OpenTherm RX"
 #define D_SENSOR_BOILER_OT_TX   "OpenTherm TX"
+
+// xnrg_15_teleinfo Denky (Teleinfo)
+#define D_CONTRACT        "Contract"
+#define D_POWER_LOAD      "Power load"
+#define D_CURRENT_TARIFF  "Current Tariff"
+#define D_TARIFF          "Tariff"
+#define D_OVERLOAD        "ADPS"
+#define D_MAX_POWER       "Max Power"
+#define D_MAX_CURRENT     "Max Current"
 
 #endif  // _LANGUAGE_ZH_CN_H_

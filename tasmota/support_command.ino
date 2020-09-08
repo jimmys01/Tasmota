@@ -288,8 +288,7 @@ void CommandHandler(char* topicBuf, char* dataBuf, uint32_t data_len)
   }
 
   if (mqtt_data[0] != '\0') {
-     MqttPublishPrefixTopic_P(RESULT_OR_STAT, type);
-     XdrvRulesProcess();
+     MqttPublishPrefixTopicRulesProcess_P(RESULT_OR_STAT, type);
   }
   fallback_topic_flag = false;
 }
@@ -470,7 +469,7 @@ void CmndStatus(void)
   if ((0 == payload) || (4 == payload)) {
     Response_P(PSTR("{\"" D_CMND_STATUS D_STATUS4_MEMORY "\":{\"" D_JSON_PROGRAMSIZE "\":%d,\"" D_JSON_FREEMEMORY "\":%d,\"" D_JSON_HEAPSIZE "\":%d,\""
 #ifdef ESP32
-                          D_JSON_PSRMAXMEMORY "\":%d,\"" D_JSON_PSRFREEMEMORY "\":%d,"
+                          D_JSON_PSRMAXMEMORY "\":%d,\"" D_JSON_PSRFREEMEMORY "\":%d,\""
 #endif
                           D_JSON_PROGRAMFLASHSIZE "\":%d,\"" D_JSON_FLASHSIZE "\":%d"
 #ifdef ESP8266
@@ -631,7 +630,7 @@ void CmndGlobalTemp(void)
       global_update = 1;  // Keep global values just entered valid
     }
   }
-  ResponseCmndFloat(global_temperature, 1);
+  ResponseCmndFloat(global_temperature_celsius, 1);
 }
 
 void CmndGlobalHum(void)
@@ -695,6 +694,11 @@ void CmndRestart(void)
   case 1:
     restart_flag = 2;
     ResponseCmndChar(D_JSON_RESTARTING);
+    break;
+  case 2:
+    restart_flag = 2;
+    restart_halt = true;
+    ResponseCmndChar(D_JSON_HALTING);
     break;
   case -1:
     CmndCrash();    // force a crash
@@ -899,6 +903,10 @@ void CmndSetoption(void)
             switch (pindex) {
               case 3:                      // SetOption85 - Enable Device Groups
               case 6:                      // SetOption88 - PWM Dimmer Buttons control remote devices
+              case 15:                     // SetOption97 - Set Baud rate for TuyaMCU serial communication (0 = 9600 or 1 = 115200)
+              case 20:                     // SetOption102 - Set Baud rate for Teleinfo serial communication (0 = 1200 or 1 = 9600)
+              case 21:                     // SetOption103 - Enable TLS mode (requires TLS version)
+              case 22:                     // SetOption104 - No Retain - disable all MQTT retained messages, some brokers don't support it: AWS IoT, Losant
                 restart_flag = 2;
                 break;
             }
@@ -1236,29 +1244,31 @@ void CmndPwmfrequency(void)
 {
   if ((1 == XdrvMailbox.payload) || ((XdrvMailbox.payload >= PWM_MIN) && (XdrvMailbox.payload <= PWM_MAX))) {
     Settings.pwm_frequency = (1 == XdrvMailbox.payload) ? PWM_FREQ : XdrvMailbox.payload;
-#ifdef ESP8266
     analogWriteFreq(Settings.pwm_frequency);   // Default is 1000 (core_esp8266_wiring_pwm.c)
-#else
-    analogWriteFreqRange(0,Settings.pwm_frequency,Settings.pwm_range);
-#endif
   }
   ResponseCmndNumber(Settings.pwm_frequency);
 }
 
-void CmndPwmrange(void)
-{
+void CmndPwmrange(void) {
+  // Support only 8 (=255), 9 (=511) and 10 (=1023) bits resolution
   if ((1 == XdrvMailbox.payload) || ((XdrvMailbox.payload > 254) && (XdrvMailbox.payload < 1024))) {
-    Settings.pwm_range = (1 == XdrvMailbox.payload) ? PWM_RANGE : XdrvMailbox.payload;
+    uint32_t pwm_range = XdrvMailbox.payload;
+    uint32_t pwm_resolution = 0;
+    while (pwm_range) {
+      pwm_resolution++;
+      pwm_range >>= 1;
+    }
+    pwm_range = (1 << pwm_resolution) - 1;
+    uint32_t old_pwm_range = Settings.pwm_range;
+    Settings.pwm_range = (1 == XdrvMailbox.payload) ? PWM_RANGE : pwm_range;
     for (uint32_t i = 0; i < MAX_PWMS; i++) {
       if (Settings.pwm_value[i] > Settings.pwm_range) {
         Settings.pwm_value[i] = Settings.pwm_range;
       }
     }
-#ifdef ESP8266
-    analogWriteRange(Settings.pwm_range);      // Default is 1023 (Arduino.h)
-#else
-    analogWriteFreqRange(0,Settings.pwm_frequency,Settings.pwm_range);
-#endif
+    if (Settings.pwm_range != old_pwm_range) {  // On ESP32 this prevents loss of duty state
+      analogWriteRange(Settings.pwm_range);     // Default is 1023 (Arduino.h)
+    }
   }
   ResponseCmndNumber(Settings.pwm_range);
 }
@@ -1333,7 +1343,7 @@ void CmndSerialConfig(void)
 
 void CmndSerialSend(void)
 {
-  if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= 5)) {
+  if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= 6)) {
     SetSeriallog(LOG_LEVEL_NONE);
     Settings.flag.mqtt_serial = 1;                                  // CMND_SERIALSEND and CMND_SERIALLOG
     Settings.flag.mqtt_serial_raw = (XdrvMailbox.index > 3) ? 1 : 0;  // CMND_SERIALSEND3
@@ -1352,6 +1362,9 @@ void CmndSerialSend(void)
       }
       else if (5 == XdrvMailbox.index) {
         SerialSendRaw(RemoveSpace(XdrvMailbox.data));               // "AA004566" as hex values
+      }
+      else if (6 == XdrvMailbox.index) {
+        SerialSendDecimal(XdrvMailbox.data);
       }
       ResponseCmndDone();
     }
@@ -1774,8 +1787,9 @@ void CmndAltitude(void)
   ResponseCmndNumber(Settings.altitude);
 }
 
-void CmndLedPower(void)
-{
+void CmndLedPower(void) {
+  // If GPIO_LEDLINK (used for network status) then allow up to 4 GPIO_LEDx control using led_power
+  // If no GPIO_LEDLINK then allow legacy single led GPIO_LED1 control using Settings.ledstate
   if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= MAX_LEDS)) {
     if (!PinUsed(GPIO_LEDLNK)) { XdrvMailbox.index = 1; }
     if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload <= 2)) {
@@ -1810,8 +1824,7 @@ void CmndLedPower(void)
   }
 }
 
-void CmndLedState(void)
-{
+void CmndLedState(void) {
   if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload < MAX_LED_OPTION)) {
     Settings.ledstate = XdrvMailbox.payload;
     if (!Settings.ledstate) {
@@ -1822,8 +1835,7 @@ void CmndLedState(void)
   ResponseCmndNumber(Settings.ledstate);
 }
 
-void CmndLedMask(void)
-{
+void CmndLedMask(void) {
   if (XdrvMailbox.data_len > 0) {
     Settings.ledmask = XdrvMailbox.payload;
   }
@@ -1832,8 +1844,7 @@ void CmndLedMask(void)
   ResponseCmndChar(stemp1);
 }
 
-void CmndLedPwmOff(void)
-{
+void CmndLedPwmOff(void) {
   if (XdrvMailbox.data_len > 0) {
     if (XdrvMailbox.payload < 0) {
       Settings.ledpwm_off = 0;
@@ -1848,8 +1859,7 @@ void CmndLedPwmOff(void)
   ResponseCmndNumber(Settings.ledpwm_off);
 }
 
-void CmndLedPwmOn(void)
-{
+void CmndLedPwmOn(void) {
   if (XdrvMailbox.data_len > 0) {
     if (XdrvMailbox.payload < 0) {
       Settings.ledpwm_on = 0;
@@ -1864,8 +1874,7 @@ void CmndLedPwmOn(void)
   ResponseCmndNumber(Settings.ledpwm_on);
 }
 
-void CmndLedPwmMode(void)
-{
+void CmndLedPwmMode(void) {
   if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= MAX_LEDS)) {
     if (!PinUsed(GPIO_LEDLNK)) { XdrvMailbox.index = 1; }
     if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload <= 2)) {

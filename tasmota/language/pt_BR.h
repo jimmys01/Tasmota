@@ -56,6 +56,7 @@
 #define D_AP "Ponto de acesso"     	// Ponto de Acesso
 #define D_AS "como"
 #define D_AUTO "Auto"
+#define D_BATT "Batt"                // Short for Battery
 #define D_BLINK "Pulsar"
 #define D_BLINKOFF "Pulsar desligado"
 #define D_BOOT_COUNT "Contagem de inicialização"
@@ -74,12 +75,12 @@
 #define D_CORS_DOMAIN "CORS Domain"
 #define D_COUNT "Contagem"
 #define D_COUNTER "Contador"
-#define D_CT_POWER "CT Power"
+#define D_CT_POWER "Carga CT"
 #define D_CURRENT "Corrente"          // As in Voltage and Current
 #define D_DATA "Dados"
 #define D_DARKLIGHT "Luz escura"
 #define D_DEBUG "Depurar"
-#define D_DEWPOINT "Dew point"
+#define D_DEWPOINT "Ponto de orvalho"
 #define D_DISABLED "Desabilitado"
 #define D_DISTANCE "Distância"
 #define D_DNS_SERVER "Servidor DNS"
@@ -116,6 +117,7 @@
 #define D_IP_ADDRESS "Endereço IP"
 #define D_LIGHT "Luz"
 #define D_LWT "LWT"
+#define D_LQI "LQI"                  // Zigbee Link Quality Index
 #define D_MODULE "Módulo"
 #define D_MOISTURE "Umidade"
 #define D_MQTT "MQTT"
@@ -245,7 +247,7 @@
 #define D_BUTTON_TOGGLE "Comandar"
 #define D_CONFIGURATION "Configuração"
 #define D_INFORMATION "Informação"
-#define D_FIRMWARE_UPGRADE "Atualização de Firmware"
+#define D_FIRMWARE_UPGRADE "Atualização de firmware"
 #define D_CONSOLE "Console"
 #define D_CONFIRM_RESTART "Confirmar o reinicio"
 
@@ -305,6 +307,7 @@
 #define D_DEVICE_NAME "Device Name"
 #define D_WEB_ADMIN_PASSWORD "Senha de WEB Admin"
 #define D_MQTT_ENABLE "MQTT habilitado"
+#define D_MQTT_TLS_ENABLE "MQTT TLS"
 #define D_FRIENDLY_NAME "Nome amigável"
 #define D_BELKIN_WEMO "Belkin WeMo"
 #define D_HUE_BRIDGE "Hue Bridge"
@@ -333,6 +336,7 @@
 #define D_MQTT_TOPIC "MQTT Tópico"
 #define D_MQTT_GROUP_TOPIC "MQTT Tópico Grupo"
 #define D_MQTT_FULL_TOPIC "MQTT Tópico Completo"
+#define D_MQTT_NO_RETAIN "MQTT No Retain"
 #define D_MDNS_DISCOVERY "Descobrir mDNS"
 #define D_MDNS_ADVERTISE "Anunciar mDNS"
 #define D_ESP_CHIP_ID "ESP Chip Id"
@@ -347,11 +351,12 @@
 #define D_UPLOAD_STARTED "Início do envio"
 #define D_UPGRADE_STARTED "Atualização iniciada"
 #define D_UPLOAD_DONE "Atualização finalizada"
+#define D_TRANSFER_STARTED "Transfer started"
 #define D_UPLOAD_ERR_1 "Nenhum arquivo selecionado"
 #define D_UPLOAD_ERR_2 "Não existe memória disponível"
 #define D_UPLOAD_ERR_3 "Byte mágico não é 0xE9"
 #define D_UPLOAD_ERR_4 "O tamanho do programa é maior do que o tamanho da memória"
-#define D_UPLOAD_ERR_5 "Envio buffer miscompare"
+#define D_UPLOAD_ERR_5 "Buffer de envio insuficiente"
 #define D_UPLOAD_ERR_6 "Falha no envio. Habilitar logging 3"
 #define D_UPLOAD_ERR_7 "Envio cancelado"
 #define D_UPLOAD_ERR_8 "Arquivo inválido"
@@ -360,7 +365,7 @@
 #define D_UPLOAD_ERR_11 "Falha ao apagar o chip RF"
 #define D_UPLOAD_ERR_12 "Falha ao escrever o chip RF"
 #define D_UPLOAD_ERR_13 "Falha ao decodificar o firmware de RF"
-#define D_UPLOAD_ERR_14 "Not compatible"
+#define D_UPLOAD_ERR_14 "Não compatível"
 #define D_UPLOAD_ERROR_CODE "Código de erro do envio"
 
 #define D_ENTER_COMMAND "Inserir comando"
@@ -645,6 +650,7 @@
 #define D_SENSOR_OLED_RESET    "OLED Reset"
 #define D_SENSOR_ZIGBEE_TXD    "Zigbee Tx"
 #define D_SENSOR_ZIGBEE_RXD    "Zigbee Rx"
+#define D_SENSOR_ZIGBEE_RST    "Zigbee Rst"
 #define D_SENSOR_SOLAXX1_TX    "SolaxX1 Tx"
 #define D_SENSOR_SOLAXX1_RX    "SolaxX1 Rx"
 #define D_SENSOR_IBEACON_TX    "iBeacon TX"
@@ -684,6 +690,13 @@
 #define D_SENSOR_TELEINFO_RX   "TInfo Rx"
 #define D_SENSOR_TELEINFO_ENABLE "TInfo EN"
 #define D_SENSOR_LMT01_PULSE   "LMT01 Pulse"
+#define D_SENSOR_ADC_INPUT     "ADC Input"
+#define D_SENSOR_ADC_TEMP      "ADC Temp"
+#define D_SENSOR_ADC_LIGHT     "ADC Light"
+#define D_SENSOR_ADC_BUTTON    "ADC Button"
+#define D_SENSOR_ADC_RANGE     "ADC Range"
+#define D_SENSOR_ADC_CT_POWER  "ADC CT Power"
+#define D_SENSOR_ADC_JOYSTICK  "ADC Joystick"
 #define D_GPIO_WEBCAM_PWDN     "CAM_PWDN"
 #define D_GPIO_WEBCAM_RESET    "CAM_RESET"
 #define D_GPIO_WEBCAM_XCLK     "CAM_XCLK"
@@ -701,6 +714,8 @@
 #define D_SENSOR_ETH_PHY_MDIO  "ETH MDIO"
 #define D_SENSOR_TCP_TXD       "TCP Tx"
 #define D_SENSOR_TCP_RXD       "TCP Rx"
+#define D_SENSOR_IEM3000_TX    "iEM3000 TX"
+#define D_SENSOR_IEM3000_RX    "iEM3000 RX"
 
 // Units
 #define D_UNIT_AMPERE "A"
@@ -816,5 +831,14 @@
 //xsns_68_opentherm.ino
 #define D_SENSOR_BOILER_OT_RX   "OpenTherm RX"
 #define D_SENSOR_BOILER_OT_TX   "OpenTherm TX"
+
+// xnrg_15_teleinfo Denky (Teleinfo)
+#define D_CONTRACT        "Contract"
+#define D_POWER_LOAD      "Power load"
+#define D_CURRENT_TARIFF  "Current Tariff"
+#define D_TARIFF          "Tariff"
+#define D_OVERLOAD        "ADPS"
+#define D_MAX_POWER       "Max Power"
+#define D_MAX_CURRENT     "Max Current"
 
 #endif  // _LANGUAGE_PT_BR_H_
