@@ -1,7 +1,7 @@
 /*
   it-IT.h - localization for Italian - Italy for Tasmota
 
-  Copyright (C) 2020 Gennaro Tortone - some mods by Antonio Fragola - Updated by bovirus - rev. 11.08.2020
+  Copyright (C) 2020 Gennaro Tortone - some mods by Antonio Fragola - Updated by bovirus - rev. 05.09.2020
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -351,7 +351,8 @@
 #define D_UPLOAD_STARTED "Caricamento..."
 #define D_UPGRADE_STARTED "Aggiornamento..."
 #define D_UPLOAD_DONE "Caricamento completato"
-#define D_TRANSFER_STARTED "Transfer started"
+#define D_UPLOAD_TRANSFER "Trasferimento caricamento"
+#define D_TRANSFER_STARTED "Trasferimento avviato"
 #define D_UPLOAD_ERR_1 "Nessun file selezionato"
 #define D_UPLOAD_ERR_2 "Spazio insufficiente"
 #define D_UPLOAD_ERR_3 "Magic byte non corrispondente a 0xE9"
@@ -622,6 +623,7 @@
 #define D_SENSOR_MAX31855_CS   "MX31855 - CS"
 #define D_SENSOR_MAX31855_CLK  "MX31855 - CLK"
 #define D_SENSOR_MAX31855_DO   "MX31855 - DO"
+#define D_SENSOR_MAX31865_CS   "MX31865 CS"
 #define D_SENSOR_NRG_SEL       "HLWBL - SEL"  // Suffix "i"
 #define D_SENSOR_NRG_CF1       "HLWBL - CF1"
 #define D_SENSOR_HLW_CF        "HLW8012 - CF"
@@ -652,7 +654,7 @@
 #define D_SENSOR_ZIGBEE_RXD    "Zigbee - RX"
 #define D_SENSOR_ZIGBEE_RST    "Zigbee - Reset"
 #define D_SENSOR_SOLAXX1_TX    "SolaxX1 - TX"
-#define D_SENSOR_SOLAXX1_RX    "SolaxX1- RX"
+#define D_SENSOR_SOLAXX1_RX    "SolaxX1 - RX"
 #define D_SENSOR_IBEACON_TX    "iBeacon - TX"
 #define D_SENSOR_IBEACON_RX    "iBeacon - RX"
 #define D_SENSOR_RDM6300_RX    "RDM6300 - RX"
@@ -684,11 +686,12 @@
 #define D_SENSOR_CC1101_GDO0   "CC1101 - GDO0"
 #define D_SENSOR_CC1101_GDO2   "CC1101 - GDO2"
 #define D_SENSOR_HRXL_RX       "HRXL - RX"
+#define D_SENSOR_DYP_RX        "DYP - RX"
 #define D_SENSOR_ELECTRIQ_MOODL "MOODL - TX"
 #define D_SENSOR_AS3935         "AS3935"
 #define D_SENSOR_WINDMETER_SPEED "Velocità vento"
-#define D_SENSOR_TELEINFO_RX    "TInfo Rx"
-#define D_SENSOR_TELEINFO_ENABLE "TInfo EN"
+#define D_SENSOR_TELEINFO_RX    "TInfo - RX"
+#define D_SENSOR_TELEINFO_ENABLE "TInfo - EN"
 #define D_SENSOR_LMT01_PULSE   "LMT01 Pulse"
 #define D_SENSOR_ADC_INPUT     "ADC Input"
 #define D_SENSOR_ADC_TEMP      "ADC Temp"
@@ -820,6 +823,8 @@
 #define D_AS3935_NOISE "rilevato rumore"
 #define D_AS3935_DISTDET "rilevato disturbatore"
 #define D_AS3935_INTNOEV "Interrupt senza evento!"
+#define D_AS3935_FLICKER "Flicker PIN IRQ!"
+#define D_AS3935_POWEROFF "Spegnimento"
 #define D_AS3935_NOMESS "in ascolto..."
 #define D_AS3935_ON "ON"
 #define D_AS3935_OFF "OFF"

@@ -88,9 +88,7 @@ enum UserSelectablePins {
   GPIO_TXD, GPIO_RXD,                  // Serial interface
   GPIO_ROT1A, GPIO_ROT1B,              // Rotary switch
   GPIO_ADC_JOY,                        // Analog joystick
-
-  GPIO_SPARE1,                         // Spare GPIOs
-
+  GPIO_SSPI_MAX31865_CS1,              // MAX31865 Chip Select
   GPIO_HRE_CLOCK, GPIO_HRE_DATA,       // HR-E Water Meter
   GPIO_ADE7953_IRQ,                    // ADE7953 IRQ
   GPIO_SOLAXX1_TX, GPIO_SOLAXX1_RX,    // Solax Inverter Serial interface
@@ -113,7 +111,7 @@ enum UserSelectablePins {
   GPIO_CC1101_GDO0, GPIO_CC1101_GDO2,  // CC1101 Serial interface
   GPIO_HRXL_RX,                        // Data from MaxBotix HRXL sonar range sensor
   GPIO_ELECTRIQ_MOODL_TX,              // ElectriQ iQ-wifiMOODL Serial TX
-  GPIO_AS3935,
+  GPIO_AS3935,                         // Franklin Lightning Sensor
   GPIO_ADC_INPUT,                      // Analog input
   GPIO_ADC_TEMP,                       // Analog Thermistor
   GPIO_ADC_LIGHT,                      // Analog Light sensor
@@ -138,6 +136,7 @@ enum UserSelectablePins {
   GPIO_LMT01,                          // LMT01 input counting pin
   GPIO_IEM3000_TX, GPIO_IEM3000_RX,    // IEM3000 Serial interface
   GPIO_ZIGBEE_RST,                     // Zigbee reset
+  GPIO_DYP_RX,
   GPIO_SENSOR_END };
 
 enum ProgramSelectablePins {
@@ -194,9 +193,7 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_TXD "|" D_SENSOR_RXD "|"
   D_SENSOR_ROTARY "_a|" D_SENSOR_ROTARY "_b|"
   D_SENSOR_ADC_JOYSTICK "|"
-
-  "Spare1|"
-
+  D_SENSOR_MAX31865_CS "|"
   D_SENSOR_HRE_CLOCK "|" D_SENSOR_HRE_DATA "|"
   D_SENSOR_ADE7953_IRQ "|"
   D_SENSOR_SOLAXX1_TX "|" D_SENSOR_SOLAXX1_RX "|"
@@ -238,12 +235,14 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_TELEINFO_RX "|" D_SENSOR_TELEINFO_ENABLE "|"
   D_SENSOR_LMT01_PULSE "|"
   D_SENSOR_IEM3000_TX "|" D_SENSOR_IEM3000_RX "|"
-  D_SENSOR_ZIGBEE_RST
+  D_SENSOR_ZIGBEE_RST "|"
+  D_SENSOR_DYP_RX
   ;
 
 const char kSensorNamesFixed[] PROGMEM =
   D_SENSOR_USER;
 
+#define MAX_MAX31865_CS  6
 #define MAX_WEBCAM_DATA  8
 #define MAX_WEBCAM_HSD   3
 
@@ -286,12 +285,12 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_SPI_CLK),        // SPI Clk
   AGPIO(GPIO_SPI_CS),         // SPI Chip Select
   AGPIO(GPIO_SPI_DC),         // SPI Data Direction
+#endif
   AGPIO(GPIO_SSPI_MISO),      // Software SPI Master Input Client Output
   AGPIO(GPIO_SSPI_MOSI),      // Software SPI Master Output Client Input
   AGPIO(GPIO_SSPI_SCLK),      // Software SPI Serial Clock
   AGPIO(GPIO_SSPI_CS),        // Software SPI Chip Select
   AGPIO(GPIO_SSPI_DC),        // Software SPI Data or Command
-#endif
 #ifdef USE_DISPLAY
   AGPIO(GPIO_BACKLIGHT),      // Display backlight control
   AGPIO(GPIO_OLED_RESET),     // OLED Display Reset
@@ -528,6 +527,9 @@ const uint16_t kGpioNiceList[] PROGMEM = {
   AGPIO(GPIO_MAX31855CLK),    // MAX31855 Serial interface
   AGPIO(GPIO_MAX31855DO),     // MAX31855 Serial interface
 #endif
+#ifdef USE_MAX31855
+  AGPIO(GPIO_SSPI_MAX31865_CS1) + MAX_MAX31865_CS,
+#endif
 #ifdef USE_HRE
   AGPIO(GPIO_HRE_CLOCK),
   AGPIO(GPIO_HRE_DATA),
@@ -551,8 +553,11 @@ const uint16_t kGpioNiceList[] PROGMEM = {
 #ifdef USE_HRXL
   AGPIO(GPIO_HRXL_RX),
 #endif
+#ifdef USE_DYP
+  AGPIO(GPIO_DYP_RX),
+#endif
 #ifdef USE_AS3935
-  AGPIO(GPIO_AS3935),
+  AGPIO(GPIO_AS3935),          // AS3935 IRQ Pin
 #endif
 #ifdef USE_TELEINFO
   AGPIO(GPIO_TELEINFO_RX),

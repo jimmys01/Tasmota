@@ -139,7 +139,6 @@ void CmndZbReset(void) {
 // High-level function
 // Send a command specified as an HEX string for the workload.
 // The target endpoint is computed if zero, i.e. sent to the first known endpoint of the device.
-// If cluster-specific, a timer may be set calling `zigbeeSetCommandTimer()`, for ex to coalesce attributes or Aqara presence sensor
 //
 // Inputs:
 // - shortaddr: 16-bits short address, or 0x0000 if group address
@@ -176,11 +175,24 @@ void zigbeeZCLSendStr(uint16_t shortaddr, uint16_t groupaddr, uint8_t endpoint, 
   }
 
   // everything is good, we can send the command
-  ZigbeeZCLSend_Raw(shortaddr, groupaddr, cluster, endpoint, cmd, clusterSpecific, manuf, buf.getBuffer(), buf.len(), true, zigbee_devices.getNextSeqNumber(shortaddr));
+
+  uint8_t seq = zigbee_devices.getNextSeqNumber(shortaddr);
+  ZigbeeZCLSend_Raw(ZigbeeZCLSendMessage({
+    shortaddr,
+    groupaddr,
+    cluster /*cluster*/,
+    endpoint,
+    cmd,
+    manuf,  /* manuf */
+    clusterSpecific /* not cluster specific */,
+    true /* response */,
+    seq,  /* zcl transaction id */
+    buf.getBuffer(), buf.len()
+  }));
   // now set the timer, if any, to read back the state later
   if (clusterSpecific) {
 #ifndef USE_ZIGBEE_NO_READ_ATTRIBUTES   // read back attribute value unless it is disabled
-    zigbeeSetCommandTimer(shortaddr, groupaddr, cluster, endpoint);
+    sendHueUpdate(shortaddr, groupaddr, cluster, endpoint);
 #endif
   }
 }
@@ -190,7 +202,7 @@ void zigbeeZCLSendStr(uint16_t shortaddr, uint16_t groupaddr, uint8_t endpoint, 
 // multiplier == 1: ignore
 // multiplier > 0: divide by the multiplier
 // multiplier < 0: multiply by the -multiplier (positive)
-void ZbApplyMultiplier(double &val_d, int16_t multiplier) {
+void ZbApplyMultiplier(double &val_d, int8_t multiplier) {
   if ((0 != multiplier) && (1 != multiplier)) {
     if (multiplier > 0) {         // inverse of decoding
       val_d = val_d / multiplier;
@@ -202,7 +214,7 @@ void ZbApplyMultiplier(double &val_d, int16_t multiplier) {
 
 // Parse "Report", "Write", "Response" or "Condig" attribute
 // Operation is one of: ZCL_REPORT_ATTRIBUTES (0x0A), ZCL_WRITE_ATTRIBUTES (0x02) or ZCL_READ_ATTRIBUTES_RESPONSE (0x01)
-void ZbSendReportWrite(const JsonObject &val_pubwrite, uint16_t device, uint16_t groupaddr, uint16_t cluster, uint8_t endpoint, uint16_t manuf, uint32_t operation) {
+void ZbSendReportWrite(const JsonObject &val_pubwrite, uint16_t device, uint16_t groupaddr, uint16_t cluster, uint8_t endpoint, uint16_t manuf, uint8_t operation) {
   SBuffer buf(200);       // buffer to store the binary output of attibutes
 
   if (nullptr == XdrvMailbox.command) {
@@ -217,7 +229,7 @@ void ZbSendReportWrite(const JsonObject &val_pubwrite, uint16_t device, uint16_t
     uint16_t attr_id = 0xFFFF;
     uint16_t cluster_id = 0xFFFF;
     uint8_t  type_id = Znodata;
-    int16_t  multiplier = 1;        // multiplier to adjust the key value
+    int8_t   multiplier = 1;        // multiplier to adjust the key value
     double   val_d = 0;             // I try to avoid `double` but this type capture both float and (u)int32_t without prevision loss
     const char* val_str = "";       // variant as string
 
@@ -245,7 +257,7 @@ void ZbSendReportWrite(const JsonObject &val_pubwrite, uint16_t device, uint16_t
         uint16_t local_attr_id = pgm_read_word(&converter->attribute);
         uint16_t local_cluster_id = CxToCluster(pgm_read_byte(&converter->cluster_short));
         uint8_t  local_type_id = pgm_read_byte(&converter->type);
-        int16_t  local_multiplier = pgm_read_word(&converter->multiplier);
+        int8_t   local_multiplier = pgm_read_byte(&converter->multiplier);
         // AddLog_P2(LOG_LEVEL_DEBUG, PSTR("Try cluster = 0x%04X, attr = 0x%04X, type_id = 0x%02X"), local_cluster_id, local_attr_id, local_type_id);
 
         if (delimiter) {
@@ -253,9 +265,9 @@ void ZbSendReportWrite(const JsonObject &val_pubwrite, uint16_t device, uint16_t
             type_id = local_type_id;
             break;
           }
-        } else if (converter->name) {
+        } else if (pgm_read_word(&converter->name_offset)) {
           // AddLog_P2(LOG_LEVEL_DEBUG, PSTR("Comparing '%s' with '%s'"), attr_name, converter->name);
-          if (0 == strcasecmp_P(key, converter->name)) {
+          if (0 == strcasecmp_P(key, Z_strings + pgm_read_word(&converter->name_offset))) {
             // match
             cluster_id = local_cluster_id;
             attr_id = local_attr_id;
@@ -284,7 +296,7 @@ void ZbSendReportWrite(const JsonObject &val_pubwrite, uint16_t device, uint16_t
       ResponseCmndChar_P(PSTR("No more than one cluster id per command"));
       return;
     }
-    
+
     // ////////////////////////////////////////////////////////////////////////////////
     // Split encoding depending on message
     if (operation != ZCL_CONFIGURE_REPORTING) {
@@ -376,7 +388,19 @@ void ZbSendReportWrite(const JsonObject &val_pubwrite, uint16_t device, uint16_t
   }
 
   // all good, send the packet
-  ZigbeeZCLSend_Raw(device, groupaddr, cluster, endpoint, operation, false /* not cluster specific */, manuf, buf.getBuffer(), buf.len(), false /* noresponse */, zigbee_devices.getNextSeqNumber(device));
+  uint8_t seq = zigbee_devices.getNextSeqNumber(device);
+  ZigbeeZCLSend_Raw(ZigbeeZCLSendMessage({
+    device,
+    groupaddr,
+    cluster /*cluster*/,
+    endpoint,
+    operation,
+    manuf,  /* manuf */
+    false /* not cluster specific */,
+    false /* no response */,
+    seq,  /* zcl transaction id */
+    buf.getBuffer(), buf.len()
+  }));
   ResponseCmndDone();
 }
 
@@ -510,7 +534,7 @@ void ZbSendSend(const JsonVariant &val_cmd, uint16_t device, uint16_t groupaddr,
 
 
 // Parse the "Send" attribute and send the command
-void ZbSendRead(const JsonVariant &val_attr, uint16_t device, uint16_t groupaddr, uint16_t cluster, uint8_t endpoint, uint16_t manuf, uint32_t operation) {
+void ZbSendRead(const JsonVariant &val_attr, uint16_t device, uint16_t groupaddr, uint16_t cluster, uint8_t endpoint, uint16_t manuf, uint8_t operation) {
   // ZbSend {"Device":"0xF289","Cluster":0,"Endpoint":3,"Read":5}
   // ZbSend {"Device":"0xF289","Cluster":"0x0000","Endpoint":"0x0003","Read":"0x0005"}
   // ZbSend {"Device":"0xF289","Cluster":0,"Endpoint":3,"Read":[5,6,7,4]}
@@ -564,7 +588,7 @@ void ZbSendRead(const JsonVariant &val_attr, uint16_t device, uint16_t groupaddr
         uint16_t local_cluster_id = CxToCluster(pgm_read_byte(&converter->cluster_short));
         // uint8_t  local_type_id = pgm_read_byte(&converter->type);
 
-        if ((converter->name) && (0 == strcasecmp_P(key, converter->name))) {
+        if ((pgm_read_word(&converter->name_offset)) && (0 == strcasecmp_P(key, Z_strings + pgm_read_word(&converter->name_offset)))) {
           // match name
           // check if there is a conflict with cluster
           // TODO
@@ -602,7 +626,19 @@ void ZbSendRead(const JsonVariant &val_attr, uint16_t device, uint16_t groupaddr
   }
 
   if (attrs_len > 0) {
-    ZigbeeZCLSend_Raw(device, groupaddr, cluster, endpoint, operation, false, manuf, attrs, attrs_len, true /* we do want a response */, zigbee_devices.getNextSeqNumber(device));
+    uint8_t seq = zigbee_devices.getNextSeqNumber(device);
+    ZigbeeZCLSend_Raw(ZigbeeZCLSendMessage({
+      device,
+      groupaddr,
+      cluster /*cluster*/,
+      endpoint,
+      operation,
+      manuf,  /* manuf */
+      false /* not cluster specific */,
+      true /* response */,
+      seq,  /* zcl transaction id */
+      attrs, attrs_len
+    }));
     ResponseCmndDone();
   } else {
     ResponseCmndChar_P(PSTR("Missing parameters"));
@@ -795,7 +831,7 @@ void ZbBindUnbind(bool unbind) {    // false = bind, true = unbind
   if (nullptr != &val_cluster) {
     cluster = strToUInt(val_cluster);   // first convert as number
     if (0 == cluster) {
-      zigbeeFindAttributeByName(val_cluster.as<const char*>(), &cluster, nullptr, nullptr, nullptr);
+      zigbeeFindAttributeByName(val_cluster.as<const char*>(), &cluster, nullptr, nullptr);
     }
   }
 
@@ -978,6 +1014,7 @@ void CmndZbName(void) {
     const char * friendlyName = zigbee_devices.getFriendlyName(shortaddr);
     Response_P(PSTR("{\"0x%04X\":{\"" D_JSON_ZIGBEE_NAME "\":\"%s\"}}"), shortaddr, friendlyName ? friendlyName : "");
   } else {
+    if (strlen(p) > 32) { p[32] = 0x00; }     // truncate to 32 chars max
     zigbee_devices.setFriendlyName(shortaddr, p);
     Response_P(PSTR("{\"0x%04X\":{\"" D_JSON_ZIGBEE_NAME "\":\"%s\"}}"), shortaddr, p);
   }
@@ -1314,6 +1351,24 @@ void CmndZbConfig(void) {
  * Presentation
 \*********************************************************************************************/
 
+extern "C" {
+  int device_cmp(const void * a, const void * b) {
+    const Z_Device &dev_a = zigbee_devices.devicesAt(*(uint8_t*)a);
+    const Z_Device &dev_b = zigbee_devices.devicesAt(*(uint8_t*)b);
+    const char * fn_a = dev_a.friendlyName;
+    const char * fn_b = dev_b.friendlyName;
+
+    if (fn_a && fn_b) {
+      return strcasecmp(fn_a, fn_b);
+    } else if (!fn_a && !fn_b) {
+      return (int32_t)dev_a.shortaddr - (int32_t)dev_b.shortaddr;
+    } else {
+      if (fn_a) return -1;
+      return 1;
+    }
+  }
+}
+
 void ZigbeeShow(bool json)
 {
   if (json) {
@@ -1322,52 +1377,110 @@ void ZigbeeShow(bool json)
   } else {
     uint32_t zigbee_num = zigbee_devices.devicesSize();
     if (!zigbee_num) { return; }
+    if (zigbee_num > 255) { zigbee_num = 255; }
 
     // Calculate fixed column width for best visual result (Theos opinion)
-    const uint8_t px_batt = (strlen(D_BATT) + 5 + 1) * 10;  // Batt 100% = 90px + 10px column separator
+    const uint8_t px_batt = 30;                         // Battery icon is 20px, add 10px as separator
     const uint8_t px_lqi = (strlen(D_LQI) + 4) * 10;        // LQI 254   = 70px
 
     WSContentSend_P(PSTR("</table>{t}"));  // Terminate current two column table and open new table
-//    WSContentSend_P(PSTR("<tr><td colspan='2'>{t}"));  // Insert multi column table
+    WSContentSend_P(PSTR("<style>.bx{height:14px;width:14px;display:inline-block;border:1px solid currentColor;background-color:var(--cl,#fff)}</style>"));
 
-//    WSContentSend_PD(PSTR("{s}Device 0x1234</th><td style='width:30%%'>" D_BATT " 100%%</td><td style='width:20%%'>" D_LQI " 254{e}"));
-//    WSContentSend_PD(PSTR("{s}Device 0x1234</th><td style='width:100px'>" D_BATT " 100%%</td><td style='width:70px'>" D_LQI " 254{e}"));
-//    WSContentSend_PD(PSTR("{s}Device 0x1234</th><td style='width:%dpx'>" D_BATT " 100%%</td><td style='width:%dpx'>" D_LQI " 254{e}"), px_batt, px_lqi);
-
-    char sdevice[33];
-    char sbatt[20];
-    char slqi[20];
+    // sort elements by name, then by id
+    uint8_t sorted_idx[zigbee_num];
+    for (uint32_t i = 0; i < zigbee_num; i++) {
+      sorted_idx[i] = i;
+    }
+    qsort(sorted_idx, zigbee_num, sizeof(sorted_idx[0]), device_cmp);
 
     for (uint32_t i = 0; i < zigbee_num; i++) {
-      uint16_t shortaddr = zigbee_devices.devicesAt(i).shortaddr;
-      char *name = (char*)zigbee_devices.getFriendlyName(shortaddr);
-      if (nullptr == name) {
-        snprintf_P(sdevice, sizeof(sdevice), PSTR(D_DEVICE " 0x%04X"), shortaddr);
-        name = sdevice;
+      const Z_Device &device = zigbee_devices.devicesAt(sorted_idx[i]);
+      uint16_t shortaddr = device.shortaddr;
+      {   // exxplicit scope to free up stack allocated strings
+        char *name = (char*) device.friendlyName;
+        char sdevice[33];
+        if (nullptr == name) {
+          snprintf_P(sdevice, sizeof(sdevice), PSTR(D_DEVICE " 0x%04X"), shortaddr);
+          name = sdevice;
+        }
+
+        char slqi[8];
+        snprintf_P(slqi, sizeof(slqi), PSTR("-"));
+        if (device.validLqi()) {
+          snprintf_P(slqi, sizeof(slqi), PSTR("%d"), device.lqi);
+        }
+
+        char sbatt[64];
+        snprintf_P(sbatt, sizeof(sbatt), PSTR("&nbsp;"));
+        if (device.validBatteryPercent()) {
+          snprintf_P(sbatt, sizeof(sbatt), PSTR("<i class=\"bt\" title=\"%d%%\" style=\"--bl:%dpx\"></i>"), device.batterypercent, changeUIntScale(device.batterypercent, 0, 100, 0, 14));
+        }
+
+        if (!i) {  // First row needs style info
+          WSContentSend_PD(PSTR("<tr><td><b>%s</b></td><td style='width:%dpx'>%s</td><td style='width:%dpx'>" D_LQI " %s{e}"),
+            name, px_batt, sbatt, px_lqi, slqi);
+        } else {   // Following rows don't need style info so reducing ajax package
+          WSContentSend_PD(PSTR("<tr><td><b>%s</b></td><td>%s</td><td>" D_LQI " %s{e}"), name, sbatt, slqi);
+        }
       }
 
-      snprintf_P(slqi, sizeof(slqi), PSTR("-"));
-      uint8_t lqi = zigbee_devices.getLQI(shortaddr);
-      if (0xFF != lqi) {
-        snprintf_P(slqi, sizeof(slqi), PSTR("%d"), lqi);
+      // Sensor
+      bool temperature_ok = device.validTemperature();
+      bool humidity_ok    = device.validHumidity();
+      bool pressure_ok    = device.validPressure();
+
+      if (temperature_ok || humidity_ok || pressure_ok) {
+        WSContentSend_P(PSTR("<tr><td colspan=\"3\">&#9478;"));
+        if (temperature_ok) {
+          char buf[12];
+          dtostrf(device.temperature / 10.0f, 3, 1, buf);
+          WSContentSend_PD(PSTR(" &#x2600;&#xFE0F; %s°C"), buf);
+        }
+        if (humidity_ok) {
+          WSContentSend_P(PSTR(" &#x1F4A7; %d%%"), device.humidity);
+        }
+        if (pressure_ok) {
+          WSContentSend_P(PSTR(" &#x26C5; %d hPa"), device.pressure);
+        }
+        WSContentSend_P(PSTR("{e}"));
       }
 
-      snprintf_P(sbatt, sizeof(sbatt), PSTR("&nbsp;"));
-      uint8_t bp = zigbee_devices.getBatteryPercent(shortaddr);
-      if (0xFF != bp) {
-        snprintf_P(sbatt, sizeof(sbatt), PSTR(D_BATT " %d%%"), bp);
-      }
-
-      if (!i) {  // First row needs style info
-        WSContentSend_PD(PSTR("{s}%s</th><td style='width:%dpx'>%s</td><td style='width:%dpx'>" D_LQI " %s{e}"),
-          name, px_batt, sbatt, px_lqi, slqi);
-      } else {   // Following rows don't need style info so reducing ajax package
-        WSContentSend_PD(PSTR("{s}%s{m}%s</td><td>" D_LQI " %s{e}"), name, sbatt, slqi);
+      // Light, switches and plugs
+      bool power_ok = device.validPower();
+      if (power_ok) {
+        uint8_t channels = device.getLightChannels();
+        if (0xFF == channels) { channels = 5; }     // if number of channel is unknown, display all known attributes
+        WSContentSend_P(PSTR("<tr><td colspan=\"3\">&#9478; %s"), device.getPower() ? PSTR(D_ON) : PSTR(D_OFF));
+        if (device.validDimmer() && (channels >= 1)) {
+          WSContentSend_P(PSTR(" &#128261; %d%%"), changeUIntScale(device.dimmer,0,254,0,100));
+        }
+        if (device.validCT() && ((channels == 2) || (channels == 5))) {
+          uint32_t ct_k = (((1000000 / device.ct) + 25) / 50) * 50;
+          WSContentSend_P(PSTR(" <span title=\"CT %d\"><small>&#9898; </small>%dK</span>"), device.ct, ct_k);
+        }
+        if (device.validHue() && device.validSat() && (channels >= 3)) {
+          uint8_t r,g,b;
+          uint8_t sat = changeUIntScale(device.sat, 0, 254, 0, 255);    // scale to 0..255
+          LightStateClass::HsToRgb(device.hue, sat, &r, &g, &b);
+          WSContentSend_P(PSTR(" <i class=\"bx\" style=\"--cl:#%02X%02X%02X\"></i>#%02X%02X%02X"), r,g,b,r,g,b);
+        } else if (device.validX() && device.validY() && (channels >= 3)) {
+          uint8_t r,g,b;
+          LightStateClass::XyToRgb(device.x / 65535.0f, device.y / 65535.0f, &r, &g, &b);
+          WSContentSend_P(PSTR(" <i class=\"bx\" style=\"--cl:#%02X%02X%02X\"></i> #%02X%02X%02X"), r,g,b,r,g,b);
+        }
+        if (device.validMainsPower() || device.validMainsVoltage()) {
+          WSContentSend_P(PSTR(" &#9889; "));
+          if (device.validMainsVoltage()) {
+            WSContentSend_P(PSTR(" %dV"), device.mains_voltage);
+          }
+          if (device.validMainsPower()) {
+            WSContentSend_P(PSTR(" %dW"), device.mains_power);
+          }
+        }
       }
     }
 
     WSContentSend_P(PSTR("</table>{t}"));  // Terminate current multi column table and open new table
-//    WSContentSend_P(PSTR("</table>{e}"));  // Terminate multi column table
 #endif
   }
 }
@@ -1405,6 +1518,12 @@ bool Xdrv23(uint8_t function)
       case FUNC_WEB_SENSOR:
         ZigbeeShow(false);
         break;
+#ifdef USE_ZIGBEE_EZSP
+      // GUI xmodem
+      case FUNC_WEB_ADD_HANDLER:
+        Webserver->on("/" WEB_HANDLE_ZIGBEE_XFER, HandleZigbeeXfer);
+        break;
+#endif  // USE_ZIGBEE_EZSP
 #endif  // USE_WEBSERVER
       case FUNC_PRE_INIT:
         ZigbeeInit();
